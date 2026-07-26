@@ -44,8 +44,10 @@ const deleteLeaveType = async (req, res, next) => {
 // ─── Leave Requests ───────────────────────────────────────────────────────────
 const applyLeave = async (req, res, next) => {
   try {
-    // Employee can only apply for themselves
-    const employeeId = req.body.EmployeeId;
+    const employeeId = req.user.Role === "Employee"
+      ? req.user.EmployeeId
+      : req.body.EmployeeId || req.user.EmployeeId;
+
     if (!employeeId) return errorResponse(res, "Employee ID is required", 400);
 
     const leave = await leaveService.applyLeave(employeeId, req.body);
@@ -69,7 +71,15 @@ const getAllLeaveRequests = async (req, res, next) => {
 
 const getMyLeaveRequests = async (req, res, next) => {
   try {
-    const requests = await leaveService.getLeaveRequestsByEmployee(req.params.employeeId);
+    const requestedEmployeeId = Number(req.params.employeeId);
+
+    if (req.user.Role === "Employee") {
+      if (!req.user.EmployeeId || requestedEmployeeId !== req.user.EmployeeId) {
+        return errorResponse(res, "Access denied", 403);
+      }
+    }
+
+    const requests = await leaveService.getLeaveRequestsByEmployee(requestedEmployeeId);
     return successResponse(res, "Leave requests fetched", requests);
   } catch (error) {
     next(error);

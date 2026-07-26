@@ -21,12 +21,19 @@ const getHRDashboard = async (req, res, next) => {
 
 const getEmployeeDashboard = async (req, res, next) => {
   try {
-    // employeeId comes from query param (HR/Admin) or from token (Employee)
-    const employeeId = req.params.employeeId;
-    if (!employeeId) {
+    const requestedEmployeeId = Number(req.params.employeeId);
+
+    if (req.user.Role === "Employee") {
+      if (!req.user.EmployeeId || requestedEmployeeId !== req.user.EmployeeId) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+      }
+    }
+
+    if (!requestedEmployeeId) {
       return res.status(400).json({ success: false, message: "Employee ID is required" });
     }
-    const data = await dashboardService.getEmployeeDashboard(employeeId);
+
+    const data = await dashboardService.getEmployeeDashboard(requestedEmployeeId);
     return successResponse(res, "Employee dashboard data fetched", data);
   } catch (error) {
     next(error);

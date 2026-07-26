@@ -12,7 +12,15 @@ const getAllPayroll = async (req, res, next) => {
 
 const getPayrollByEmployee = async (req, res, next) => {
   try {
-    const records = await payrollService.getPayrollByEmployee(req.params.employeeId);
+    const requestedEmployeeId = Number(req.params.employeeId);
+
+    if (req.user.Role === "Employee") {
+      if (!req.user.EmployeeId || requestedEmployeeId !== req.user.EmployeeId) {
+        return errorResponse(res, "Access denied", 403);
+      }
+    }
+
+    const records = await payrollService.getPayrollByEmployee(requestedEmployeeId);
     return successResponse(res, "Payroll fetched", records);
   } catch (error) {
     if (error.message === "Employee not found") return errorResponse(res, error.message, 404);

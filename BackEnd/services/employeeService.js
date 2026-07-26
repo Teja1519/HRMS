@@ -1,5 +1,8 @@
-const { Employee, Department } = require("../models");
+const bcrypt = require("bcryptjs");
+const { Employee, Department, User } = require("../models");
 const { Op } = require("sequelize");
+
+const DEFAULT_EMPLOYEE_PASSWORD = process.env.DEFAULT_EMPLOYEE_PASSWORD || "Welcome@123";
 
 const getAllEmployees = async () => {
   return await Employee.findAll({
@@ -17,22 +20,34 @@ const getEmployeeById = async (id) => {
 };
 
 const createEmployee = async (data) => {
-  // Check unique EmployeeCode
   const codeExists = await Employee.findOne({ where: { EmployeeCode: data.EmployeeCode } });
   if (codeExists) throw new Error("Employee code already exists");
 
-  // Check unique Email
   const emailExists = await Employee.findOne({ where: { Email: data.Email } });
   if (emailExists) throw new Error("Email already in use");
 
-  return await Employee.create(data);
+  const employee = await Employee.create(data);
+
+  const existingUser = await User.findOne({ where: { Username: data.Email } });
+  if (existingUser) {
+    await employee.update({ UserId: existingUser.UserId });
+  } else {
+    const hashedPassword = await bcrypt.hash(DEFAULT_EMPLOYEE_PASSWORD, 10);
+    const user = await User.create({
+      Username: data.Email,
+      Password: hashedPassword,
+      Role: "Employee",
+    });
+    await employee.update({ UserId: user.UserId });
+  }
+
+  return employee;
 };
 
 const updateEmployee = async (id, data) => {
   const employee = await Employee.findByPk(id);
   if (!employee) throw new Error("Employee not found");
 
-  // If updating email, check uniqueness
   if (data.Email && data.Email !== employee.Email) {
     const emailExists = await Employee.findOne({
       where: { Email: data.Email, EmployeeId: { [Op.ne]: id } },

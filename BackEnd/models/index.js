@@ -17,6 +17,10 @@ const Setting = require("./Setting");
 Department.hasMany(Employee, { foreignKey: "DepartmentId", as: "Employees" });
 Employee.belongsTo(Department, { foreignKey: "DepartmentId", as: "Department" });
 
+// User <-> Employee
+User.hasOne(Employee, { foreignKey: "UserId", as: "Employee" });
+Employee.belongsTo(User, { foreignKey: "UserId", as: "User" });
+
 // Employee <-> Attendance
 Employee.hasMany(Attendance, { foreignKey: "EmployeeId", as: "Attendances" });
 Attendance.belongsTo(Employee, { foreignKey: "EmployeeId", as: "Employee" });

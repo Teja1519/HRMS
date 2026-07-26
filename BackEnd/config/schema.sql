@@ -41,9 +41,11 @@ CREATE TABLE IF NOT EXISTS Employees (
   Salary        DECIMAL(12,2) DEFAULT 0.00,
   DepartmentId  INT,
   Status        ENUM('Active', 'Inactive', 'Terminated') DEFAULT 'Active',
+  UserId        INT UNIQUE,
   createdAt     DATETIME DEFAULT CURRENT_TIMESTAMP,
   updatedAt     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (DepartmentId) REFERENCES Departments(DepartmentId) ON DELETE SET NULL
+  FOREIGN KEY (DepartmentId) REFERENCES Departments(DepartmentId) ON DELETE SET NULL,
+  FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE SET NULL
 );
 
 -- Attendance

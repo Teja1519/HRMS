@@ -1,11 +1,11 @@
 const jwt = require("jsonwebtoken");
-const { User } = require("../models");
+const { User, Employee } = require("../models");
+const { buildAuthenticatedUserContext } = require("../services/authService");
 
 const protect = async (req, res, next) => {
   try {
     let token;
 
-    // Check for Bearer token in Authorization header
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer ")
@@ -20,11 +20,12 @@ const protect = async (req, res, next) => {
       });
     }
 
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Attach user to request
-    const user = await User.findByPk(decoded.UserId);
+    const user = await User.findByPk(decoded.UserId, {
+      include: [{ model: Employee, as: "Employee", attributes: ["EmployeeId", "EmployeeCode"] }],
+    });
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -32,11 +33,7 @@ const protect = async (req, res, next) => {
       });
     }
 
-    req.user = {
-      UserId: user.UserId,
-      Username: user.Username,
-      Role: user.Role,
-    };
+    req.user = buildAuthenticatedUserContext(user);
 
     next();
   } catch (error) {

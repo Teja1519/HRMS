@@ -3,8 +3,10 @@ const { successResponse, errorResponse } = require("../utils/responseHelper");
 
 const checkIn = async (req, res, next) => {
   try {
-    // Employee marks their own attendance; HR/Admin can specify employeeId in body
-    const employeeId = req.body.EmployeeId || req.user.EmployeeId;
+    const employeeId = req.user.Role === "Employee"
+      ? req.user.EmployeeId
+      : req.body.EmployeeId || req.user.EmployeeId;
+
     if (!employeeId) return errorResponse(res, "Employee ID is required", 400);
 
     const record = await attendanceService.checkIn(employeeId);
@@ -17,7 +19,10 @@ const checkIn = async (req, res, next) => {
 
 const checkOut = async (req, res, next) => {
   try {
-    const employeeId = req.body.EmployeeId || req.user.EmployeeId;
+    const employeeId = req.user.Role === "Employee"
+      ? req.user.EmployeeId
+      : req.body.EmployeeId || req.user.EmployeeId;
+
     if (!employeeId) return errorResponse(res, "Employee ID is required", 400);
 
     const record = await attendanceService.checkOut(employeeId);
@@ -40,7 +45,15 @@ const getAllAttendance = async (req, res, next) => {
 
 const getAttendanceByEmployee = async (req, res, next) => {
   try {
-    const records = await attendanceService.getAttendanceByEmployee(req.params.employeeId);
+    const requestedEmployeeId = Number(req.params.employeeId);
+
+    if (req.user.Role === "Employee") {
+      if (!req.user.EmployeeId || requestedEmployeeId !== req.user.EmployeeId) {
+        return errorResponse(res, "Access denied", 403);
+      }
+    }
+
+    const records = await attendanceService.getAttendanceByEmployee(requestedEmployeeId);
     return successResponse(res, "Attendance fetched", records);
   } catch (error) {
     if (error.message === "Employee not found") return errorResponse(res, error.message, 404);
