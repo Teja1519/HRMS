@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "../ui/utils";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
+
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", roles: ["Admin", "HR", "Employee"] },
   { icon: Users, label: "Employees", path: "/employees", roles: ["Admin", "HR"] },
@@ -22,6 +24,7 @@ const menuItems = [
   { icon: BarChart3, label: "Reports", path: "/reports", roles: ["Admin", "HR"] },
   { icon: Settings, label: "Settings", path: "/settings", roles: ["Admin"] }
 ];
+
 export function Sidebar({ currentPath, onNavigate, onLogout }) {
   const userStr = localStorage.getItem("user");
   const user = userStr ? JSON.parse(userStr) : null;
@@ -57,6 +60,7 @@ export function Sidebar({ currentPath, onNavigate, onLogout }) {
     return <button
       key={item.path}
       onClick={() => onNavigate(item.path)}
+      title={item.label}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all",
         isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -82,13 +86,17 @@ export function Sidebar({ currentPath, onNavigate, onLogout }) {
             <p className="text-xs text-muted-foreground truncate">{role}</p>
           </div>
         </div>
-        <button
-          onClick={onLogout}
-          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-accent rounded-lg transition-all shrink-0"
-          title="Logout"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={onLogout}
+              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-accent rounded-lg transition-all shrink-0"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Sign Out / Logout</TooltipContent>
+        </Tooltip>
       </div>
     </aside>;
 }

@@ -33,6 +33,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import api from "../lib/api";
 import { toast } from "sonner";
+
 const calculateDays = (startDate, endDate) => {
   if (!startDate || !endDate) return 0;
   const start = new Date(startDate);
@@ -40,6 +41,7 @@ const calculateDays = (startDate, endDate) => {
   const diff = (end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24);
   return Math.max(1, Math.round(diff + 1));
 };
+
 export function LeaveManagement() {
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [leaveBalance, setLeaveBalance] = useState([]);
@@ -50,6 +52,7 @@ export function LeaveManagement() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [leaveForm, setLeaveForm] = useState({ LeaveTypeId: "", StartDate: "", EndDate: "", Reason: "" });
+
   const loadLeaveData = async () => {
     try {
       setLoading(true);
@@ -68,7 +71,7 @@ export function LeaveManagement() {
         reason: request.Reason ?? "-",
         appliedOn: request.AppliedDate ?? "-"
       }));
-      const balanceMap = /* @__PURE__ */ new Map();
+      const balanceMap = new Map();
       typePayload.forEach((type, index) => {
         balanceMap.set(type.LeaveTypeName, {
           type: type.LeaveTypeName,
@@ -99,10 +102,13 @@ export function LeaveManagement() {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     void loadLeaveData();
   }, []);
+
   const filteredRequests = leaveRequests.filter((request) => statusFilter === "all" || request.status === statusFilter);
+
   const getStatusBadge = (status) => {
     switch (status) {
       case "approved":
@@ -124,9 +130,11 @@ export function LeaveManagement() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
   const pendingCount = leaveRequests.filter((request) => request.status === "pending").length;
   const approvedCount = leaveRequests.filter((request) => request.status === "approved").length;
   const rejectedCount = leaveRequests.filter((request) => request.status === "rejected").length;
+
   const handleApplyLeave = async (event) => {
     event.preventDefault();
     try {
@@ -136,7 +144,7 @@ export function LeaveManagement() {
       await api.post("/leaves/apply", {
         ...leaveForm,
         LeaveTypeId: Number(leaveForm.LeaveTypeId),
-        EmployeeId: parsedUser?.EmployeeId ? Number(parsedUser.EmployeeId) : void 0
+        EmployeeId: parsedUser?.EmployeeId ? Number(parsedUser.EmployeeId) : undefined
       });
       toast.success("Leave request submitted successfully");
       setIsCreateOpen(false);
@@ -148,14 +156,38 @@ export function LeaveManagement() {
       setIsSubmitting(false);
     }
   };
+
   const handleLeaveDecision = async (id, action) => {
     try {
       await api.put(`/leaves/${id}/${action}`);
       setLeaveRequests((current) => current.map((request) => request.id === id ? { ...request, status: action === "approve" ? "approved" : "rejected" } : request));
+      toast.success(`Leave request ${action === "approve" ? "approved" : "rejected"} successfully`);
     } catch (error) {
       console.error(`Failed to ${action} leave request`, error);
+      toast.error(`Failed to ${action} leave request`);
     }
   };
+
+  const handleExportLeaves = () => {
+    try {
+      const csvHeaders = ["Request ID,Employee Name,Employee ID,Leave Type,Start Date,End Date,Days,Status,Reason"];
+      const csvRows = leaveRequests.map(req => 
+        `"${req.id}","${req.employeeName}","${req.employeeId}","${req.leaveType}","${req.startDate}","${req.endDate}","${req.days}","${req.status}","${req.reason}"`
+      );
+      const csvContent = "data:text/csv;charset=utf-8," + [csvHeaders, ...csvRows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "leaves_export.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Leave report exported successfully!");
+    } catch (error) {
+      toast.error("Failed to export leave report");
+    }
+  };
+
   return <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -163,7 +195,7 @@ export function LeaveManagement() {
           <p className="text-muted-foreground mt-1">Manage employee leave requests and balances</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportLeaves} title="Export leave requests ledger to CSV">
             <Download className="w-4 h-4 mr-2" />
             Export Report
           </Button>
@@ -206,12 +238,12 @@ export function LeaveManagement() {
                 <div className="space-y-2">
                   <Label htmlFor="reason">Reason</Label>
                   <textarea
-    id="reason"
-    rows={4}
-    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none"
-    value={leaveForm.Reason}
-    onChange={(event) => setLeaveForm({ ...leaveForm, Reason: event.target.value })}
-  />
+                    id="reason"
+                    rows={4}
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none"
+                    value={leaveForm.Reason}
+                    onChange={(event) => setLeaveForm({ ...leaveForm, Reason: event.target.value })}
+                  />
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
@@ -411,8 +443,44 @@ export function LeaveManagement() {
             <CardHeader>
               <CardTitle>Leave History</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground">Leave history will be displayed here</div>
+            <CardContent className="p-0">
+              {leaveRequests.filter(r => r.status !== "pending").length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">No leave history available yet.</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Leave Type</TableHead>
+                      <TableHead>Start Date</TableHead>
+                      <TableHead>End Date</TableHead>
+                      <TableHead>Days</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {leaveRequests.filter(r => r.status !== "pending").map((request) => (
+                      <TableRow key={request.id}>
+                        <TableCell>
+                          <div className="font-medium">{request.employeeName}</div>
+                          <div className="text-xs text-muted-foreground">{request.employeeId}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{request.leaveType}</Badge>
+                        </TableCell>
+                        <TableCell>{request.startDate}</TableCell>
+                        <TableCell>{request.endDate}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{request.days} days</Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{request.reason}</TableCell>
+                        <TableCell>{getStatusBadge(request.status)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

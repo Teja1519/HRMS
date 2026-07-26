@@ -25,6 +25,8 @@ import {
   ResponsiveContainer
 } from "recharts";
 import api from "../lib/api";
+import { toast } from "sonner";
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -33,12 +35,14 @@ const formatCurrency = (value) => {
     maximumFractionDigits: 1
   }).format(value);
 };
+
 export function Reports() {
   const [attendanceData, setAttendanceData] = useState([]);
   const [payrollData, setPayrollData] = useState([]);
   const [departmentData, setDepartmentData] = useState([]);
   const [leaveData, setLeaveData] = useState([]);
   const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     const loadReports = async () => {
       try {
@@ -61,8 +65,9 @@ export function Reports() {
     };
     void loadReports();
   }, []);
+
   const attendanceReportData = useMemo(() => {
-    const grouped = /* @__PURE__ */ new Map();
+    const grouped = new Map();
     attendanceData.forEach((record) => {
       const month = record.AttendanceDate?.slice(0, 7) ?? "Unknown";
       const existing = grouped.get(month) ?? { month, present: 0, absent: 0, late: 0 };
@@ -74,8 +79,9 @@ export function Reports() {
     });
     return Array.from(grouped.values());
   }, [attendanceData]);
+
   const payrollReportData = useMemo(() => {
-    const grouped = /* @__PURE__ */ new Map();
+    const grouped = new Map();
     payrollData.forEach((record) => {
       const month = record.PayrollMonth ?? "Unknown";
       const existing = grouped.get(month) ?? { month, amount: 0, employees: 0 };
@@ -85,14 +91,16 @@ export function Reports() {
     });
     return Array.from(grouped.values());
   }, [payrollData]);
+
   const departmentPerformanceData = useMemo(() => {
     return (departmentData ?? []).map((department) => ({
       department: department.DepartmentName,
       performance: Math.min(100, Math.max(0, (department.Employees?.length ?? 0) * 12 + 40))
     }));
   }, [departmentData]);
+
   const leaveReportData = useMemo(() => {
-    const grouped = /* @__PURE__ */ new Map();
+    const grouped = new Map();
     leaveData.forEach((request) => {
       const month = request.AppliedDate?.slice(0, 7) ?? "Unknown";
       const existing = grouped.get(month) ?? { month, approved: 0, rejected: 0, pending: 0 };
@@ -104,9 +112,49 @@ export function Reports() {
     });
     return Array.from(grouped.values());
   }, [leaveData]);
+
   const averageAttendance = attendanceReportData.length ? Math.round(attendanceReportData.reduce((sum, row) => sum + row.present, 0) / attendanceReportData.length) : 0;
   const totalPayrollYtd = payrollReportData.reduce((sum, row) => sum + row.amount, 0);
   const averagePerformance = departmentPerformanceData.length ? Math.round(departmentPerformanceData.reduce((sum, row) => sum + row.performance, 0) / departmentPerformanceData.length) : 0;
+
+  const handleExportReports = () => {
+    try {
+      const csvContent = [];
+      csvContent.push("=== ATTENDANCE SUMMARY ===");
+      csvContent.push("Month,Present Count,Absent Count,Late Count");
+      attendanceReportData.forEach(row => {
+        csvContent.push(`"${row.month}",${row.present},${row.absent},${row.late}`);
+      });
+      csvContent.push("\n=== PAYROLL SUMMARY ===");
+      csvContent.push("Month,Amount Disbursed,Employee Count");
+      payrollReportData.forEach(row => {
+        csvContent.push(`"${row.month}",${row.amount},${row.employees}`);
+      });
+      csvContent.push("\n=== DEPARTMENT PERFORMANCE ===");
+      csvContent.push("Department,Performance Score %");
+      departmentPerformanceData.forEach(row => {
+        csvContent.push(`"${row.department}",${row.performance}`);
+      });
+      csvContent.push("\n=== LEAVE SUMMARY ===");
+      csvContent.push("Month,Approved Count,Rejected Count,Pending Count");
+      leaveReportData.forEach(row => {
+        csvContent.push(`"${row.month}",${row.approved},${row.rejected},${row.pending}`);
+      });
+
+      const csvString = "data:text/csv;charset=utf-8," + csvContent.join("\n");
+      const encodedUri = encodeURI(csvString);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "hr_reports_export.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("All report analytics exported successfully!");
+    } catch (error) {
+      toast.error("Failed to export report analytics");
+    }
+  };
+
   return <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -129,7 +177,7 @@ export function Reports() {
             <Calendar className="w-4 h-4 mr-2" />
             Custom Range
           </Button>
-          <Button>
+          <Button onClick={handleExportReports} title="Export consolidated operations report summary to CSV">
             <Download className="w-4 h-4 mr-2" />
             Export All
           </Button>
@@ -141,8 +189,24 @@ export function Reports() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Reports</p>
-                <h3 className="text-3xl font-bold mt-2">{4}</h3>
+                <p className="text-sm text-muted-foreground font-medium">Avg Attendance</p>
+                <h3 className="text-3xl font-bold mt-2">{averageAttendance}</h3>
+                <p className="text-sm text-success mt-1">Present per month</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-success" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Payroll YTD</p>
+                <h3 className="text-3xl font-bold mt-2">{formatCurrency(totalPayrollYtd)}</h3>
+                <p className="text-sm text-success mt-1">Disbursed amount</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <BarChart3 className="w-6 h-6 text-primary" />
@@ -153,69 +217,55 @@ export function Reports() {
 
         <Card>
           <CardContent className="p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Avg Attendance Rate</p>
-              <h3 className="text-3xl font-bold mt-2">{averageAttendance}%</h3>
-              <p className="text-sm text-muted-foreground mt-1">Based on current attendance data</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Avg Performance</p>
+                <h3 className="text-3xl font-bold mt-2">{averagePerformance}%</h3>
+                <p className="text-sm text-success mt-1">Target score</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-warning" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Payroll YTD</p>
-              <h3 className="text-2xl font-bold mt-2">{formatCurrency(totalPayrollYtd)}</h3>
-              <p className="text-sm text-muted-foreground mt-1">Based on available payroll data</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Avg Performance</p>
-              <h3 className="text-3xl font-bold mt-2">{averagePerformance}%</h3>
-              <p className="text-sm text-muted-foreground mt-1">Department performance score</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">Active Leaves</p>
+                <h3 className="text-3xl font-bold mt-2">{leaveData.filter((r) => r.Status === "Approved").length}</h3>
+                <p className="text-sm text-success mt-1">Approved requests</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-blue-700" />
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="attendance" className="space-y-4">
+      <Tabs defaultValue="attendance">
         <TabsList>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="payroll">Payroll</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="leave">Leave</TabsTrigger>
+          <TabsTrigger value="leave">Leaves</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="attendance" className="space-y-4">
+        <TabsContent value="attendance" className="space-y-4 mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Attendance Trends</CardTitle>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
+              <CardTitle>Attendance Rate</CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? <div className="flex h-[400px] items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">Loading report data...</div> : attendanceReportData.length === 0 ? <div className="flex h-[400px] items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">No attendance report data is available yet.</div> : <ResponsiveContainer width="100%" height={400}>
+              {attendanceReportData.length === 0 ? <div className="flex h-[350px] items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">No attendance report data is available yet.</div> : <ResponsiveContainer width="100%" height={350}>
                   <AreaChart data={attendanceReportData}>
                     <defs>
                       <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22C55E" stopOpacity={0.3} />
+                        <stop offset="5%" stopColor="#22C55E" stopOpacity={0.8} />
                         <stop offset="95%" stopColor="#22C55E" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorAbsent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorLate" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -223,26 +273,19 @@ export function Reports() {
                     <YAxis stroke="#64748B" />
                     <Tooltip />
                     <Legend />
-                    <Area type="monotone" dataKey="present" stroke="#22C55E" fillOpacity={1} fill="url(#colorPresent)" name="Present" />
-                    <Area type="monotone" dataKey="absent" stroke="#EF4444" fillOpacity={1} fill="url(#colorAbsent)" name="Absent" />
-                    <Area type="monotone" dataKey="late" stroke="#F59E0B" fillOpacity={1} fill="url(#colorLate)" name="Late" />
+                    <Area type="monotone" dataKey="present" stroke="#22C55E" fillOpacity={1} fill="url(#colorPresent)" name="Present Employees" />
+                    <Area type="monotone" dataKey="absent" stroke="#EF4444" fillOpacity={0} name="Absent Employees" />
                   </AreaChart>
                 </ResponsiveContainer>}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="payroll" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TabsContent value="payroll" className="space-y-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Payroll Expenses</CardTitle>
-                  <Button variant="outline" size="sm">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export
-                  </Button>
-                </div>
+                <CardTitle>Payroll Disbursements</CardTitle>
               </CardHeader>
               <CardContent>
                 {payrollReportData.length === 0 ? <div className="flex h-[350px] items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">No payroll report data is available yet.</div> : <ResponsiveContainer width="100%" height={350}>
@@ -276,16 +319,10 @@ export function Reports() {
           </div>
         </TabsContent>
 
-        <TabsContent value="performance" className="space-y-4">
+        <TabsContent value="performance" className="space-y-4 mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Department Performance</CardTitle>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
+              <CardTitle>Performance Index by Department</CardTitle>
             </CardHeader>
             <CardContent>
               {departmentPerformanceData.length === 0 ? <div className="flex h-[400px] items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">No performance report data is available yet.</div> : <ResponsiveContainer width="100%" height={400}>
@@ -301,16 +338,10 @@ export function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="leave" className="space-y-4">
+        <TabsContent value="leave" className="space-y-4 mt-6">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Leave Request Trends</CardTitle>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
+              <CardTitle>Leave Distribution</CardTitle>
             </CardHeader>
             <CardContent>
               {leaveReportData.length === 0 ? <div className="flex h-[400px] items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">No leave report data is available yet.</div> : <ResponsiveContainer width="100%" height={400}>

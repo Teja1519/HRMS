@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Download, Mail, MapPin, MoreVertical, Edit, Trash2, Eye } from "lucide-react";
+import { Search, Plus, Download, Mail, MapPin, MoreVertical, Edit, Trash2, Eye, Phone, Calendar, DollarSign, Shield } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -64,10 +64,19 @@ export function Employees() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, departmentFilter, statusFilter]);
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isViewOpen, setIsViewOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [viewEmployee, setViewEmployee] = useState(null);
 
   const [employeeForm, setEmployeeForm] = useState({
     EmployeeCode: "",
@@ -188,6 +197,11 @@ export function Employees() {
     setIsEditOpen(true);
   };
 
+  const openViewDialog = (rawEmployee) => {
+    setViewEmployee(rawEmployee);
+    setIsViewOpen(true);
+  };
+
   const handleEditEmployee = async (event) => {
     event.preventDefault();
     try {
@@ -221,6 +235,34 @@ export function Employees() {
     }
   };
 
+  const handleExport = () => {
+    try {
+      const csvHeaders = ["Employee ID,Name,Email,Phone,Department,Designation,Status,Join Date,Location"];
+      const csvRows = employees.map(emp => 
+        `"${emp.id}","${emp.name}","${emp.email}","${emp.phone}","${emp.department}","${emp.position}","${emp.status}","${emp.joinDate}","${emp.location}"`
+      );
+      const csvContent = "data:text/csv;charset=utf-8," + [csvHeaders, ...csvRows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "employees_export.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Employees exported successfully!");
+    } catch (error) {
+      toast.error("Failed to export employees");
+    }
+  };
+
+  const handleSendEmail = (email) => {
+    if (email && email !== "-") {
+      window.location.href = `mailto:${email}`;
+    } else {
+      toast.error("No email address found for this employee");
+    }
+  };
+
   const departmentOptions = useMemo(
     () => Array.from(new Set(employees.map((employee) => employee.department))).filter(Boolean),
     [employees]
@@ -245,6 +287,13 @@ export function Employees() {
     return matchesSearch && matchesDepartment && matchesStatus;
   });
 
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+
+  const paginatedEmployees = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredEmployees.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredEmployees, currentPage]);
+
   return <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -252,7 +301,7 @@ export function Employees() {
           <p className="text-muted-foreground mt-1">Manage and view all employee information</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport} title="Export employees list to CSV">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -413,6 +462,78 @@ export function Employees() {
               </form>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Employee Profile Details</DialogTitle>
+                <DialogDescription>Full structural record of the selected employee.</DialogDescription>
+              </DialogHeader>
+              {viewEmployee && (
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center gap-4 border-b border-border pb-4">
+                    <Avatar className="w-14 h-14">
+                      <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                        {`${viewEmployee.FirstName?.[0] ?? ""}${viewEmployee.LastName?.[0] ?? ""}`}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="text-lg font-semibold">{viewEmployee.FirstName} {viewEmployee.LastName}</h3>
+                      <p className="text-sm text-muted-foreground">{viewEmployee.Designation || "No Designation"}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Shield className="w-4 h-4 shrink-0" />
+                      <span>Code:</span>
+                    </div>
+                    <span className="font-mono">{viewEmployee.EmployeeCode}</span>
+
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Mail className="w-4 h-4 shrink-0" />
+                      <span>Email:</span>
+                    </div>
+                    <span className="truncate">{viewEmployee.Email}</span>
+
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Phone className="w-4 h-4 shrink-0" />
+                      <span>Phone:</span>
+                    </div>
+                    <span>{viewEmployee.Phone || "-"}</span>
+
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Building2 className="w-4 h-4 shrink-0" />
+                      <span>Department:</span>
+                    </div>
+                    <span>{viewEmployee.Department?.DepartmentName || "Unassigned"}</span>
+
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <DollarSign className="w-4 h-4 shrink-0" />
+                      <span>Salary:</span>
+                    </div>
+                    <span className="font-medium">{formatCurrency(viewEmployee.Salary || 0)}</span>
+
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-4 h-4 shrink-0" />
+                      <span>Joined:</span>
+                    </div>
+                    <span>{formatDate(viewEmployee.HireDate)}</span>
+
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="w-4 h-4 shrink-0" />
+                      <span>Location:</span>
+                    </div>
+                    <span>{viewEmployee.Address || "-"}</span>
+                  </div>
+                  <DialogFooter className="pt-2">
+                    <Button type="button" onClick={() => setIsViewOpen(false)} className="w-full">
+                      Close Profile
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -503,11 +624,11 @@ export function Employees() {
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     Loading employees...
                   </TableCell>
-                </TableRow> : filteredEmployees.length === 0 ? <TableRow>
+                </TableRow> : paginatedEmployees.length === 0 ? <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No employees available yet. Add employees from the database to populate this list.
                   </TableCell>
-                </TableRow> : filteredEmployees.map((employee) => <TableRow key={employee.id}>
+                </TableRow> : paginatedEmployees.map((employee) => <TableRow key={employee.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
@@ -549,34 +670,28 @@ export function Employees() {
                     </TableCell>
                     <TableCell className="text-sm">{employee.joinDate}</TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="cursor-pointer">
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(employee.raw)}>
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit Employee
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer">
-                            <Mail className="w-4 h-4 mr-2" />
-                            Send Email
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive cursor-pointer" onClick={() => handleDeleteEmployee(employee.dbId)}>
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center gap-2 justify-end">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                          onClick={() => openEditDialog(employee.raw)}
+                          title="Edit Employee"
+                        >
+                          <Edit className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => handleDeleteEmployee(employee.dbId)}
+                          title="Delete Employee"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>)}
             </TableBody>
@@ -586,22 +701,33 @@ export function Employees() {
 
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          Showing {filteredEmployees.length} of {employees.length} employees
+          Showing {filteredEmployees.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(filteredEmployees.length, currentPage * itemsPerPage)} of {filteredEmployees.length} employees
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+          >
             Previous
           </Button>
-          <Button variant="outline" size="sm">
-            1
-          </Button>
-          <Button variant="outline" size="sm">
-            2
-          </Button>
-          <Button variant="outline" size="sm">
-            3
-          </Button>
-          <Button variant="outline" size="sm">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+            <Button
+              key={page}
+              variant={currentPage === page ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCurrentPage(page)}
+            >
+              {page}
+            </Button>
+          ))}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            disabled={currentPage === totalPages || totalPages === 0}
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+          >
             Next
           </Button>
         </div>

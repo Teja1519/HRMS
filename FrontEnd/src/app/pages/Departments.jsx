@@ -18,7 +18,9 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import api from "../lib/api";
 import { toast } from "sonner";
+
 const departmentPalette = ["#2563EB", "#7C3AED", "#059669", "#D97706", "#DC2626"];
+
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -27,12 +29,17 @@ const formatCurrency = (amount) => {
     maximumFractionDigits: 1
   }).format(amount);
 };
+
 export function Departments() {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [departmentForm, setDepartmentForm] = useState({ DepartmentName: "", Description: "" });
+  
+  const [editForm, setEditForm] = useState({ id: "", DepartmentName: "", Description: "" });
+
   const loadDepartments = async () => {
     try {
       setLoading(true);
@@ -49,7 +56,8 @@ export function Departments() {
           location: department.Location ?? "-",
           budget,
           color: departmentPalette[index % departmentPalette.length],
-          growth: employeeCount > 0 ? "Active" : "No staff"
+          growth: employeeCount > 0 ? "Active" : "No staff",
+          raw: department
         };
       });
       setDepartments(mappedDepartments);
@@ -60,9 +68,11 @@ export function Departments() {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     void loadDepartments();
   }, []);
+
   const handleCreateDepartment = async (event) => {
     event.preventDefault();
     try {
@@ -78,62 +88,132 @@ export function Departments() {
       setIsSubmitting(false);
     }
   };
+
+  const openEditDialog = (dept) => {
+    setEditForm({
+      id: dept.id,
+      DepartmentName: dept.name,
+      Description: dept.raw?.Description || ""
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleEditDepartment = async (event) => {
+    event.preventDefault();
+    try {
+      setIsSubmitting(true);
+      await api.put(`/departments/${editForm.id}`, {
+        DepartmentName: editForm.DepartmentName,
+        Description: editForm.Description
+      });
+      toast.success("Department updated successfully");
+      setIsEditOpen(false);
+      await loadDepartments();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to update department");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const pieChartData = departments.map((dept) => ({
     name: dept.name,
     value: dept.employees,
     color: dept.color
   }));
+
   const totalEmployees = departments.reduce((sum, dept) => sum + dept.employees, 0);
   const totalBudget = departments.reduce((sum, dept) => sum + dept.budget, 0);
+
   return <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Department Management</h1>
           <p className="text-muted-foreground mt-1">Manage departments and organizational structure</p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Department
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Add department</DialogTitle>
-              <DialogDescription>Create a new department and make it available in the organizational chart.</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateDepartment} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="departmentName">Department name</Label>
-                <Input
-    id="departmentName"
-    required
-    value={departmentForm.DepartmentName}
-    onChange={(event) => setDepartmentForm({ ...departmentForm, DepartmentName: event.target.value })}
-  />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="departmentDescription">Description</Label>
-                <textarea
-    id="departmentDescription"
-    rows={4}
-    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none"
-    value={departmentForm.Description}
-    onChange={(event) => setDepartmentForm({ ...departmentForm, Description: event.target.value })}
-  />
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Creating..." : "Create department"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Department
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Add department</DialogTitle>
+                <DialogDescription>Create a new department and make it available in the organizational chart.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateDepartment} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="departmentName">Department name</Label>
+                  <Input
+                    id="departmentName"
+                    required
+                    value={departmentForm.DepartmentName}
+                    onChange={(event) => setDepartmentForm({ ...departmentForm, DepartmentName: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="departmentDescription">Description</Label>
+                  <textarea
+                    id="departmentDescription"
+                    rows={4}
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none"
+                    value={departmentForm.Description}
+                    onChange={(event) => setDepartmentForm({ ...departmentForm, Description: event.target.value })}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating..." : "Create department"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Edit department</DialogTitle>
+                <DialogDescription>Modify organizational unit name and structural description.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleEditDepartment} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editDepartmentName">Department name</Label>
+                  <Input
+                    id="editDepartmentName"
+                    required
+                    value={editForm.DepartmentName}
+                    onChange={(event) => setEditForm({ ...editForm, DepartmentName: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editDepartmentDescription">Description</Label>
+                  <textarea
+                    id="editDepartmentDescription"
+                    rows={4}
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none"
+                    value={editForm.Description}
+                    onChange={(event) => setEditForm({ ...editForm, Description: event.target.value })}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Saving..." : "Save changes"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -188,15 +268,15 @@ export function Departments() {
           {loading ? <div className="flex h-[400px] items-center justify-center text-sm text-muted-foreground">Loading departments...</div> : pieChartData.length === 0 ? <div className="flex h-[400px] items-center justify-center text-sm text-muted-foreground">No department data is available yet.</div> : <ResponsiveContainer width="100%" height={400}>
               <PieChart>
                 <Pie
-    data={pieChartData}
-    cx="50%"
-    cy="50%"
-    labelLine={false}
-    label={({ name, value }) => `${name}: ${value}`}
-    outerRadius={130}
-    fill="#8884d8"
-    dataKey="value"
-  >
+                  data={pieChartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, value }) => `${name}: ${value}`}
+                  outerRadius={130}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
                   {pieChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                 </Pie>
                 <Tooltip />
@@ -221,7 +301,7 @@ export function Departments() {
                     <p className="text-xs text-muted-foreground">{dept.location}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" onClick={() => openEditDialog(dept)}>
                   <Edit className="w-4 h-4" />
                 </Button>
               </div>

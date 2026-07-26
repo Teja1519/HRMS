@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { DollarSign, Download, Send, FileText, TrendingUp } from "lucide-react";
+import { IndianRupee, Download, Send, FileText, TrendingUp, Printer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -47,7 +47,10 @@ export function Payroll() {
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [loading, setLoading] = useState(false);
   const [isProcessOpen, setIsProcessOpen] = useState(false);
+  const [isPayslipOpen, setIsPayslipOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [selectedPayslip, setSelectedPayslip] = useState(null);
 
   const [processForm, setProcessForm] = useState({
     EmployeeId: "",
@@ -65,6 +68,7 @@ export function Payroll() {
       const payload = response.data?.data ?? [];
       const mappedPayroll = payload.map((record) => ({
         id: `PR-${record.PayrollId}`,
+        dbId: record.PayrollId,
         name: record.Employee ? `${record.Employee.FirstName ?? ""} ${record.Employee.LastName ?? ""}`.trim() : "Unknown",
         department: record.Employee?.Department?.DepartmentName ?? "Unassigned",
         position: record.Employee?.Designation ?? "-",
@@ -73,7 +77,8 @@ export function Payroll() {
         deductions: Number(record.Deductions ?? 0),
         netSalary: Number(record.NetSalary ?? 0),
         status: "processed",
-        payrollMonth: record.PayrollMonth ?? ""
+        payrollMonth: record.PayrollMonth ?? "",
+        raw: record
       }));
       setPayrollData(mappedPayroll);
     } catch (error) {
@@ -141,18 +146,47 @@ export function Payroll() {
     }
   };
 
+  const handleExportPayslips = () => {
+    try {
+      const csvHeaders = ["Payroll ID,Employee Name,Department,Position,Base Salary,Allowances,Deductions,Net Salary,Status,Month"];
+      const csvRows = filteredPayroll.map(row => 
+        `"${row.id}","${row.name}","${row.department}","${row.position}","${row.baseSalary}","${row.allowances}","${row.deductions}","${row.netSalary}","${row.status}","${row.payrollMonth}"`
+      );
+      const csvContent = "data:text/csv;charset=utf-8," + [csvHeaders, ...csvRows].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `payroll_export_${selectedMonth}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Payroll ledger exported successfully!");
+    } catch (error) {
+      toast.error("Failed to export payroll ledger");
+    }
+  };
+
+  const openPayslipDialog = (payrollRecord) => {
+    setSelectedPayslip(payrollRecord);
+    setIsPayslipOpen(true);
+  };
+
+  const handlePrintPayslip = () => {
+    window.print();
+  };
+
   const filteredPayroll = useMemo(() => {
     if (selectedMonth === "all") return payrollData;
     return payrollData.filter((row) => row.payrollMonth === selectedMonth);
   }, [payrollData, selectedMonth]);
 
   const monthlyPayrollTrend = useMemo(() => {
-    const grouped = new Map();
+    const newMap = new Map();
     payrollData.forEach((row) => {
-      const amount = grouped.get(row.payrollMonth) ?? 0;
-      grouped.set(row.payrollMonth, amount + row.netSalary);
+      const amount = newMap.get(row.payrollMonth) ?? 0;
+      newMap.set(row.payrollMonth, amount + row.netSalary);
     });
-    return Array.from(grouped.entries()).map(([month, amount]) => ({ month, amount }));
+    return Array.from(newMap.entries()).map(([month, amount]) => ({ month, amount }));
   }, [payrollData]);
 
   const totalPayroll = filteredPayroll.reduce((sum, emp) => sum + emp.netSalary, 0);
@@ -169,7 +203,7 @@ export function Payroll() {
           <p className="text-muted-foreground mt-1">Manage employee salaries and payroll processing</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportPayslips} title="Export payroll ledger as CSV">
             <Download className="w-4 h-4 mr-2" />
             Export Payslips
           </Button>
@@ -232,6 +266,63 @@ export function Payroll() {
               </form>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={isPayslipOpen} onOpenChange={setIsPayslipOpen}>
+            <DialogContent className="sm:max-w-md print:max-w-full">
+              <DialogHeader>
+                <DialogTitle className="print:hidden">Employee Payslip Summary</DialogTitle>
+                <DialogDescription className="print:hidden">Verify the details or print a copy of this statement.</DialogDescription>
+              </DialogHeader>
+              {selectedPayslip && (
+                <div className="space-y-4 pt-2 print:p-6">
+                  <div className="text-center pb-4 border-b border-border">
+                    <h2 className="text-xl font-bold tracking-tight">HRMS ENTERPRISE PORTAL</h2>
+                    <p className="text-xs text-muted-foreground mt-1">Salary Payslip — Month: {selectedPayslip.payrollMonth}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-y-2 text-sm border-b border-border pb-4">
+                    <span className="text-muted-foreground">Employee Name:</span>
+                    <span className="font-semibold text-right">{selectedPayslip.name}</span>
+
+                    <span className="text-muted-foreground">Employee ID:</span>
+                    <span className="font-mono text-right">{selectedPayslip.id}</span>
+
+                    <span className="text-muted-foreground">Department:</span>
+                    <span className="text-right">{selectedPayslip.department}</span>
+
+                    <span className="text-muted-foreground">Position:</span>
+                    <span className="text-right">{selectedPayslip.position}</span>
+                  </div>
+                  <div className="space-y-2 text-sm border-b border-border pb-4">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Basic Salary:</span>
+                      <span>{formatCurrency(selectedPayslip.baseSalary)}</span>
+                    </div>
+                    <div className="flex justify-between text-success">
+                      <span>Allowances:</span>
+                      <span>+{formatCurrency(selectedPayslip.allowances)}</span>
+                    </div>
+                    <div className="flex justify-between text-destructive">
+                      <span>Deductions:</span>
+                      <span>-{formatCurrency(selectedPayslip.deductions)}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center bg-primary/10 p-3 rounded-lg border border-primary/20">
+                    <span className="font-bold text-primary">Net Disbursement:</span>
+                    <span className="text-xl font-bold text-primary">{formatCurrency(selectedPayslip.netSalary)}</span>
+                  </div>
+                  <DialogFooter className="pt-2 print:hidden">
+                    <Button type="button" variant="outline" onClick={handlePrintPayslip}>
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print Payslip
+                    </Button>
+                    <Button type="button" onClick={() => setIsPayslipOpen(false)}>
+                      Close Statement
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -249,7 +340,7 @@ export function Payroll() {
                 </div>
               </div>
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-primary" />
+                <IndianRupee className="w-6 h-6 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -294,7 +385,7 @@ export function Payroll() {
                 <p className="text-sm text-muted-foreground mt-1">Per employee</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-blue-700" />
+                <IndianRupee className="w-6 h-6 text-blue-700" />
               </div>
             </div>
           </CardContent>
@@ -385,7 +476,7 @@ export function Payroll() {
                     {employee.status === "processed" ? <Badge className="bg-success/10 text-success border-success/20">Processed</Badge> : <Badge className="bg-warning/10 text-warning border-warning/20">Pending</Badge>}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => openPayslipDialog(employee)} title="View and print employee payslip receipt">
                       <FileText className="w-4 h-4 mr-1" />
                       Payslip
                     </Button>
