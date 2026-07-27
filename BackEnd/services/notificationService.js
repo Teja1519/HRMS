@@ -1,5 +1,6 @@
 const { Notification, Department, User, Employee } = require("../models");
 const { Op } = require("sequelize");
+const { toNotificationDTO } = require("../dtos/NotificationDTO");
 
 const getNotificationsForUser = async (userContext) => {
   const { UserId, EmployeeId } = userContext;
@@ -19,7 +20,7 @@ const getNotificationsForUser = async (userContext) => {
     whereConditions.push({ Audience: "Department", DepartmentId: departmentId });
   }
 
-  return await Notification.findAll({
+  const notifications = await Notification.findAll({
     where: { [Op.or]: whereConditions },
     include: [
       { model: Department, as: "Department", attributes: ["DepartmentId", "DepartmentName"] },
@@ -27,6 +28,8 @@ const getNotificationsForUser = async (userContext) => {
     ],
     order: [["CreatedAt", "DESC"]],
   });
+
+  return notifications.map(toNotificationDTO);
 };
 
 const getUnreadNotificationsForUser = async (userContext) => {
@@ -34,24 +37,38 @@ const getUnreadNotificationsForUser = async (userContext) => {
   return notifications.filter((n) => !n.IsRead);
 };
 
-const createAnnouncement = async (data) => {
-  return await Notification.create({
+const createAnnouncement = async (data, createdByUserId) => {
+  const priority = ["Normal", "Important", "Urgent"].includes(data.Priority) ? data.Priority : "Normal";
+  const audience = ["All", "Department", "User"].includes(data.Audience) ? data.Audience : "All";
+
+  const notif = await Notification.create({
     Title: data.Title || "Company Announcement",
     Message: data.Message,
-    Priority: data.Priority || "Normal",
-    Audience: data.Audience || "All",
+    Priority: priority,
+    Audience: audience,
     DepartmentId: data.DepartmentId ? Number(data.DepartmentId) : null,
     UserId: data.UserId ? Number(data.UserId) : null,
-    CreatedBy: data.CreatedBy ? Number(data.CreatedBy) : null,
+    CreatedBy: createdByUserId || null,
     IsRead: false,
   });
+
+  const fullNotif = await Notification.findByPk(notif.NotificationId, {
+    include: [{ model: Department, as: "Department" }],
+  });
+
+  return toNotificationDTO(fullNotif);
 };
 
 const updateAnnouncement = async (id, data) => {
   const notification = await Notification.findByPk(id);
   if (!notification) throw new Error("Announcement not found");
   await notification.update(data);
-  return notification;
+
+  const fullNotif = await Notification.findByPk(id, {
+    include: [{ model: Department, as: "Department" }],
+  });
+
+  return toNotificationDTO(fullNotif);
 };
 
 const deleteAnnouncement = async (id) => {
@@ -61,15 +78,18 @@ const deleteAnnouncement = async (id) => {
   return true;
 };
 
-const markAsRead = async (notificationId, userId) => {
+const markAsRead = async (notificationId) => {
   const notification = await Notification.findByPk(notificationId);
   if (!notification) throw new Error("Notification not found");
   await notification.update({ IsRead: true });
-  return notification;
+  return toNotificationDTO(notification);
 };
 
 const markAllAsRead = async (userId) => {
-  await Notification.update({ IsRead: true }, { where: { [Op.or]: [{ UserId: userId }, { Audience: "All" }] } });
+  await Notification.update(
+    { IsRead: true },
+    { where: { [Op.or]: [{ UserId: userId }, { Audience: "All" }] } }
+  );
   return true;
 };
 

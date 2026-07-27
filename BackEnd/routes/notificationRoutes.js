@@ -22,14 +22,14 @@ router.get("/", getNotifications);
 // GET /api/notifications/unread
 router.get("/unread", getUnreadNotifications);
 
-// POST /api/notifications — Admin, HR can create announcement
-router.post("/", authorize("Admin", "HR"), createAnnouncement);
+// POST /api/notifications — Admin, HR, Manager can create announcement
+router.post("/", authorize("Admin", "HR", "Manager"), createAnnouncement);
 
-// PUT /api/notifications/:id — Admin, HR can update announcement
-router.put("/:id", authorize("Admin", "HR"), updateAnnouncement);
+// PUT /api/notifications/:id — Admin, HR, Manager can update announcement
+router.put("/:id", authorize("Admin", "HR", "Manager"), updateAnnouncement);
 
-// DELETE /api/notifications/:id — Admin, HR can delete announcement
-router.delete("/:id", authorize("Admin", "HR"), deleteAnnouncement);
+// DELETE /api/notifications/:id — Admin, HR, Manager can delete announcement
+router.delete("/:id", authorize("Admin", "HR", "Manager"), deleteAnnouncement);
 
 // PUT /api/notifications/read-all
 router.put("/read-all", markAllAsRead);

@@ -18,7 +18,7 @@ const Payroll = sequelize.define(
       },
     },
     PayrollMonth: {
-      type: DataTypes.STRING(20), // e.g., "2024-01"
+      type: DataTypes.STRING(20), // e.g., "2026-07"
       allowNull: false,
     },
     BasicSalary: {
@@ -26,11 +26,23 @@ const Payroll = sequelize.define(
       allowNull: false,
       defaultValue: 0.0,
     },
+    HRA: {
+      type: DataTypes.DECIMAL(12, 2),
+      defaultValue: 0.0,
+    },
     Allowances: {
       type: DataTypes.DECIMAL(12, 2),
       defaultValue: 0.0,
     },
     Bonus: {
+      type: DataTypes.DECIMAL(12, 2),
+      defaultValue: 0.0,
+    },
+    PF: {
+      type: DataTypes.DECIMAL(12, 2),
+      defaultValue: 0.0,
+    },
+    Tax: {
       type: DataTypes.DECIMAL(12, 2),
       defaultValue: 0.0,
     },
@@ -47,21 +59,34 @@ const Payroll = sequelize.define(
     tableName: "Payroll",
     timestamps: true,
     hooks: {
-      // Auto-calculate NetSalary before saving
       beforeCreate: (payroll) => {
-        const net =
-          parseFloat(payroll.BasicSalary || 0) +
-          parseFloat(payroll.Allowances || 0) +
-          parseFloat(payroll.Bonus || 0) -
-          parseFloat(payroll.Deductions || 0);
+        const basic = parseFloat(payroll.BasicSalary || 0);
+        const hra = parseFloat(payroll.HRA || 0);
+        const allowances = parseFloat(payroll.Allowances || 0);
+        const bonus = parseFloat(payroll.Bonus || 0);
+        const pf = parseFloat(payroll.PF || 0);
+        const tax = parseFloat(payroll.Tax || 0);
+        const deductions = parseFloat(payroll.Deductions || 0);
+
+        const gross = basic + hra + allowances + bonus;
+        const totalDeductions = pf + tax + deductions;
+        const net = gross - totalDeductions;
+
         payroll.NetSalary = Math.round(net * 100) / 100;
       },
       beforeUpdate: (payroll) => {
-        const net =
-          parseFloat(payroll.BasicSalary || 0) +
-          parseFloat(payroll.Allowances || 0) +
-          parseFloat(payroll.Bonus || 0) -
-          parseFloat(payroll.Deductions || 0);
+        const basic = parseFloat(payroll.BasicSalary || 0);
+        const hra = parseFloat(payroll.HRA || 0);
+        const allowances = parseFloat(payroll.Allowances || 0);
+        const bonus = parseFloat(payroll.Bonus || 0);
+        const pf = parseFloat(payroll.PF || 0);
+        const tax = parseFloat(payroll.Tax || 0);
+        const deductions = parseFloat(payroll.Deductions || 0);
+
+        const gross = basic + hra + allowances + bonus;
+        const totalDeductions = pf + tax + deductions;
+        const net = gross - totalDeductions;
+
         payroll.NetSalary = Math.round(net * 100) / 100;
       },
     },

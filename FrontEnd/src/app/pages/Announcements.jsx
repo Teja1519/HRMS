@@ -24,7 +24,10 @@ import {
 import api from "../lib/api";
 import { toast } from "sonner";
 
+import { useAuth } from "../../context/AuthContext";
+
 export function Announcements() {
+  const { role } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -32,10 +35,7 @@ export function Announcements() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const userStr = localStorage.getItem("user");
-  const user = userStr ? JSON.parse(userStr) : null;
-  const role = user?.Role || "Employee";
-  const isAdminOrHr = role === "Admin" || role === "HR";
+  const isAdminOrHr = role === "Admin" || role === "HR" || role === "Manager";
 
   const [form, setForm] = useState({
     Title: "",

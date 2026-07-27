@@ -21,13 +21,12 @@ const getUnreadNotifications = async (req, res, next) => {
 
 const createAnnouncement = async (req, res, next) => {
   try {
-    const { Message } = req.body;
-    if (!Message) return errorResponse(res, "Message is required", 400);
+    const { Message, Title } = req.body;
+    if (!Title || !Message) {
+      return errorResponse(res, "Title and Message are required to publish an announcement", 400);
+    }
 
-    const announcement = await notificationService.createAnnouncement({
-      ...req.body,
-      CreatedBy: req.user.UserId,
-    });
+    const announcement = await notificationService.createAnnouncement(req.body, req.user.UserId);
     return successResponse(res, "Announcement published successfully", announcement, 201);
   } catch (error) {
     next(error);
@@ -56,7 +55,7 @@ const deleteAnnouncement = async (req, res, next) => {
 
 const markAsRead = async (req, res, next) => {
   try {
-    const notification = await notificationService.markAsRead(req.params.id, req.user.UserId);
+    const notification = await notificationService.markAsRead(req.params.id);
     return successResponse(res, "Notification marked as read", notification);
   } catch (error) {
     if (error.message === "Notification not found") return errorResponse(res, error.message, 404);

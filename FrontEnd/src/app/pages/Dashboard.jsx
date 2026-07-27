@@ -1,288 +1,387 @@
 import { useEffect, useState } from "react";
-import { Users, UserCheck, Building2, Calendar, Clock, Megaphone, LogIn, LogOut, CheckCircle2, ChevronRight, ArrowRight } from "lucide-react";
+import { Users, UserCheck, Building2, Calendar, Clock, Megaphone, CheckCircle, ArrowRight, IndianRupee, FileText, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from "recharts";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { PunchCard } from "../components/PunchCard";
+import { useAuth } from "../../context/AuthContext";
 import api from "../lib/api";
 import { toast } from "sonner";
 
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount || 0);
+};
+
 export function Dashboard({ onNavigate }) {
-  const [stats, setStats] = useState({
-    employeeCount: 0,
-    departmentCount: 0,
-    leaveCount: 0,
-    presentCount: 0
-  });
+  const { user, role } = useAuth();
+  const isAdmin = role === "Admin";
+  const isHR = role === "HR" || role === "Manager";
 
-  const [todayStatus, setTodayStatus] = useState(null);
-  const [announcements, setAnnouncements] = useState([]);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const loadDashboardData = async () => {
+  const loadDashboard = async () => {
     try {
-      const [empRes, deptRes, leaveRes, todayRes, notifRes] = await Promise.all([
-        api.get("/employees").catch(() => ({ data: { data: [] } })),
-        api.get("/departments").catch(() => ({ data: { data: [] } })),
-        api.get("/leaves").catch(() => ({ data: { data: [] } })),
-        api.get("/attendance/today").catch(() => ({ data: { data: null } })),
-        api.get("/notifications").catch(() => ({ data: { data: [] } }))
-      ]);
+      setLoading(true);
+      let endpoint = "/dashboard/employee";
+      if (isAdmin) endpoint = "/dashboard/admin";
+      else if (isHR) endpoint = "/dashboard/hr";
 
-      const employees = empRes.data?.data ?? [];
-      const departments = deptRes.data?.data ?? [];
-      const leaves = leaveRes.data?.data ?? [];
-      const notifs = notifRes.data?.data ?? [];
-
-      setStats({
-        employeeCount: employees.length,
-        departmentCount: departments.length,
-        leaveCount: leaves.filter((l) => l.Status === "Pending").length,
-        presentCount: todayRes.data?.data?.status === "checked_in" || todayRes.data?.data?.status === "checked_out" ? 1 : 0
-      });
-
-      setTodayStatus(todayRes.data?.data ?? null);
-      setAnnouncements(notifs.slice(0, 3));
+      const res = await api.get(endpoint);
+      setDashboardData(res.data?.data || null);
     } catch (error) {
       console.error("Failed to load dashboard data", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadDashboardData();
-  }, []);
-
-  const handleCheckIn = async () => {
-    try {
-      setActionLoading(true);
-      await api.post("/attendance/checkin", {});
-      toast.success("Checked in successfully!");
-      await loadDashboardData();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to check in");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCheckOut = async () => {
-    try {
-      setActionLoading(true);
-      await api.post("/attendance/checkout", {});
-      toast.success("Checked out successfully!");
-      await loadDashboardData();
-    } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to check out");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const leaveData = [
-    { name: "Approved", value: 5, color: "#22C55E" },
-    { name: "Pending", value: stats.leaveCount, color: "#F59E0B" },
-    { name: "Rejected", value: 1, color: "#EF4444" }
-  ];
+    void loadDashboard();
+  }, [role]);
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Welcome back! Here's an overview of your organization today.
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            {isAdmin && "Admin Control Center"}
+            {isHR && "HR Operations Hub"}
+            {!isAdmin && !isHR && "Employee Self-Service Portal"}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Welcome back, <strong className="text-foreground">{user?.Username}</strong> ({role})! Here is your daily overview.
+          </p>
+        </div>
       </div>
 
-      {/* Attendance Check-in Widget */}
-      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-card border-primary/20">
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="space-y-1 text-center sm:text-left">
-              <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <h3 className="font-semibold text-lg">Daily Attendance Widget</h3>
-                {todayStatus?.status === "checked_in" && (
-                  <Badge className="bg-success/10 text-success border-success/20">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Checked In ({todayStatus?.checkIn})
-                  </Badge>
-                )}
-                {todayStatus?.status === "checked_out" && (
-                  <Badge variant="secondary">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Checked Out ({todayStatus?.checkOut})
-                  </Badge>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Working Hours Today: <span className="font-semibold text-primary">{todayStatus?.workingHours || "0.0"} hrs</span>
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleCheckIn}
-                disabled={actionLoading || todayStatus?.status === "checked_in" || todayStatus?.status === "checked_out"}
-                className="bg-success hover:bg-success/90 text-white"
-              >
-                <LogIn className="w-4 h-4 mr-2" />
-                {todayStatus?.status === "checked_in" || todayStatus?.status === "checked_out" ? "Checked In" : "Check In"}
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={handleCheckOut}
-                disabled={actionLoading || todayStatus?.status !== "checked_in"}
-                className="border-destructive text-destructive hover:bg-destructive hover:text-white"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                {todayStatus?.status === "checked_out" ? "Checked Out" : "Check Out"}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Employees</p>
-                <h3 className="text-3xl font-bold mt-2">{stats.employeeCount}</h3>
-                <p className="text-xs text-muted-foreground mt-1">Active workforce</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Users className="w-6 h-6 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Today</p>
-                <h3 className="text-3xl font-bold mt-2">{stats.presentCount}</h3>
-                <p className="text-xs text-success mt-1">Checked in</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
-                <UserCheck className="w-6 h-6 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Departments</p>
-                <h3 className="text-3xl font-bold mt-2">{stats.departmentCount}</h3>
-                <p className="text-xs text-muted-foreground mt-1">Operational units</p>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-warning" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Leaves</p>
-                <h3 className="text-3xl font-bold mt-2">{stats.leaveCount}</h3>
-                <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 mt-1">
-                  Requires action
-                </Badge>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-destructive" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Latest Company Announcements */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Megaphone className="w-5 h-5 text-primary" />
-                Latest Announcements
-              </CardTitle>
-              <CardDescription>Recent updates and company notifications</CardDescription>
-            </div>
-            {onNavigate && (
-              <Button variant="ghost" size="sm" onClick={() => onNavigate("/announcements")}>
-                View All <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {announcements.length === 0 ? (
-              <div className="p-8 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
-                No company announcements posted yet.
-              </div>
-            ) : (
-              announcements.map((item) => (
-                <div key={item.NotificationId} className="p-4 rounded-lg bg-accent/40 border border-border space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm">{item.Title}</span>
-                    <Badge variant="outline" className="text-[10px]">{item.Priority || "Normal"}</Badge>
+      {/* ────────────────── 1. ADMIN DASHBOARD ────────────────── */}
+      {isAdmin && (
+        <div className="space-y-6">
+          {/* Admin Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate && onNavigate("/employees")}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Workforce</p>
+                    <h3 className="text-3xl font-bold mt-2">{dashboardData?.totalEmployees || 0}</h3>
+                    <p className="text-xs text-success mt-1">{dashboardData?.activeEmployees || 0} Active Employees</p>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{item.Message}</p>
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Users className="w-6 h-6 text-primary" />
+                  </div>
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Leave Status Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Leave Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={leaveData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {leaveData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate && onNavigate("/departments")}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Departments</p>
+                    <h3 className="text-3xl font-bold mt-2">{dashboardData?.departmentsCount || 0}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">Active units</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-warning" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate && onNavigate("/leave")}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending Leaves</p>
+                    <h3 className="text-3xl font-bold mt-2 text-warning">{dashboardData?.leaves?.pending || 0}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{dashboardData?.leaves?.approved || 0} Approved</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-warning" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate && onNavigate("/payroll")}>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Monthly Payroll</p>
+                    <h3 className="text-2xl font-bold mt-2 text-primary">{formatCurrency(dashboardData?.payroll?.totalDisbursed)}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{dashboardData?.payroll?.count || 0} Slips Disbursed</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <IndianRupee className="w-6 h-6 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Admin Mid Section: Departments & Attendance */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-lg">
+                  <span>Departments Overview</span>
+                  <Badge variant="outline">{dashboardData?.departmentsCount || 0} Units</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {dashboardData?.departments?.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No departments registered.</p>
+                ) : (
+                  dashboardData?.departments?.map((d) => (
+                    <div key={d.DepartmentId} className="flex items-center justify-between p-3 bg-accent/40 rounded-lg">
+                      <span className="font-semibold text-sm">{d.DepartmentName}</span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-lg">Today's Attendance Status</CardTitle>
+                <CardDescription>Live employee check-in and presence metrics</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="p-4 bg-success/10 border border-success/20 rounded-lg">
+                    <p className="text-xs text-muted-foreground font-semibold uppercase">Present</p>
+                    <p className="text-3xl font-bold text-success mt-1">{dashboardData?.attendance?.present || 0}</p>
+                  </div>
+                  <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
+                    <p className="text-xs text-muted-foreground font-semibold uppercase">Late</p>
+                    <p className="text-3xl font-bold text-warning mt-1">{dashboardData?.attendance?.late || 0}</p>
+                  </div>
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-xs text-muted-foreground font-semibold uppercase">Absent</p>
+                    <p className="text-3xl font-bold text-destructive mt-1">{dashboardData?.attendance?.absent || 0}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ────────────────── 2. HR DASHBOARD ────────────────── */}
+      {isHR && !isAdmin && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Today's Present</p>
+                    <h3 className="text-3xl font-bold mt-2 text-success">{dashboardData?.todayAttendance?.present || 0}</h3>
+                    <p className="text-xs text-warning mt-1">{dashboardData?.todayAttendance?.late || 0} Late Arrivals</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+                    <UserCheck className="w-6 h-6 text-success" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending Leave Requests</p>
+                    <h3 className="text-3xl font-bold mt-2 text-warning">{dashboardData?.pendingLeaveRequests?.length || 0}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">Awaiting approval</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-warning" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Payroll Disbursed</p>
+                    <h3 className="text-2xl font-bold mt-2 text-primary">{formatCurrency(dashboardData?.payrollSummary?.totalNet)}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{dashboardData?.payrollSummary?.count || 0} Employees Paid</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <IndianRupee className="w-6 h-6 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* HR Pending Leave Requests Table */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Pending Leave Applications</CardTitle>
+                <CardDescription>Review and take action on employee leave requests</CardDescription>
+              </div>
+              {onNavigate && (
+                <Button variant="ghost" size="sm" onClick={() => onNavigate("/leave")}>
+                  Manage All Leaves <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Leave Type</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dashboardData?.pendingLeaveRequests?.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                        No pending leave requests awaiting approval.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    dashboardData?.pendingLeaveRequests?.map((req) => (
+                      <TableRow key={req.LeaveId || req.id}>
+                        <TableCell className="font-medium">{req.EmployeeName || req.employeeName}</TableCell>
+                        <TableCell><Badge variant="outline">{req.LeaveTypeName || req.leaveTypeName}</Badge></TableCell>
+                        <TableCell className="text-xs font-mono">{req.StartDate} to {req.EndDate}</TableCell>
+                        <TableCell className="max-w-xs truncate text-xs">{req.Reason || req.reason}</TableCell>
+                        <TableCell><Badge className="bg-warning/10 text-warning border-warning/20">Pending</Badge></TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ────────────────── 3. EMPLOYEE DASHBOARD ────────────────── */}
+      {!isAdmin && !isHR && (
+        <div className="space-y-6">
+          {/* Punch Card Widget */}
+          <PunchCard onStatusChange={loadDashboard} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Upcoming Leaves */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Upcoming Leaves</CardTitle>
+                  <CardDescription>Your active & future applications</CardDescription>
+                </div>
+                {onNavigate && (
+                  <Button variant="ghost" size="sm" onClick={() => onNavigate("/leave")}>
+                    Apply <ArrowRight className="w-4 h-4 ml-1" />
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {dashboardData?.upcomingLeaves?.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4 border border-dashed rounded-lg text-center">
+                    No upcoming leave applications.
+                  </p>
+                ) : (
+                  dashboardData?.upcomingLeaves?.map((leave) => (
+                    <div key={leave.LeaveId || leave.id} className="p-3 bg-accent/40 rounded-lg flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold">{leave.leaveTypeName || leave.LeaveTypeName}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{leave.StartDate} - {leave.EndDate}</p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">{leave.Status || leave.status}</Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent Payslips */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Recent Payslips</CardTitle>
+                  <CardDescription>Your monthly salary disbursement statements</CardDescription>
+                </div>
+                {onNavigate && (
+                  <Button variant="ghost" size="sm" onClick={() => onNavigate("/payroll")}>
+                    View All <ArrowRight className="w-4 h-4 ml-1" />
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Month</TableHead>
+                      <TableHead className="text-right">Gross Salary</TableHead>
+                      <TableHead className="text-right">Deductions</TableHead>
+                      <TableHead className="text-right">Net Salary</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardData?.recentPayslips?.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                          No payslip statements generated yet.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      dashboardData?.recentPayslips?.map((p) => (
+                        <TableRow key={p.PayrollId || p.id}>
+                          <TableCell className="font-mono text-sm">{p.PayrollMonth || p.payrollMonth}</TableCell>
+                          <TableCell className="text-right text-xs text-success">{formatCurrency(p.GrossSalary || p.grossSalary)}</TableCell>
+                          <TableCell className="text-right text-xs text-destructive">-{formatCurrency(p.TotalDeductions || p.totalDeductions)}</TableCell>
+                          <TableCell className="text-right font-bold text-sm text-primary">{formatCurrency(p.NetSalary || p.netSalary)}</TableCell>
+                          <TableCell><Badge className="bg-success/10 text-success border-success/20 text-xs">Paid</Badge></TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function ChevronRight(props) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   );
 }
