@@ -33,6 +33,15 @@ const protect = async (req, res, next) => {
       });
     }
 
+    const { buildAuthenticatedUserContext, associateEmployeeWithUser } = require("../services/authService");
+
+    if (!user.Employee) {
+      await associateEmployeeWithUser(user);
+      user = await User.findByPk(decoded.UserId, {
+        include: [{ model: Employee, as: "Employee" }],
+      });
+    }
+
     req.user = buildAuthenticatedUserContext(user);
 
     next();

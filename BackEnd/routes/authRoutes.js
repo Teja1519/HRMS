@@ -1,18 +1,23 @@
 const express = require("express");
 const router = express.Router();
-
-const { register, login, getMe } = require("../controllers/authController");
-const { registerValidation, loginValidation } = require("../validations/authValidation");
-const { handleValidationErrors } = require("../validations/validate");
+const authController = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
+const {
+  registerValidation,
+  loginValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation,
+} = require("../validations/authValidation");
 
-// POST /api/auth/register
-router.post("/register", registerValidation, handleValidationErrors, register);
+// Public authentication endpoints
+router.post("/login", loginValidation, authController.login);
+router.post("/register", registerValidation, authController.register);
+router.post("/refresh", authController.refresh);
+router.post("/forgot-password", forgotPasswordValidation, authController.forgotPassword);
+router.post("/reset-password", resetPasswordValidation, authController.resetPassword);
 
-// POST /api/auth/login
-router.post("/login", loginValidation, handleValidationErrors, login);
-
-// GET /api/auth/me  (protected)
-router.get("/me", protect, getMe);
+// Protected authentication endpoints
+router.post("/logout", protect, authController.logout);
+router.get("/me", protect, authController.getMe);
 
 module.exports = router;

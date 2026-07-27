@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AuthProvider, useAuth } from "../context/AuthContext";
 import { MainLayout } from "./components/layout/MainLayout";
 import { Login } from "./pages/auth/Login";
 import { Dashboard } from "./pages/Dashboard";
@@ -7,31 +8,24 @@ import { Attendance } from "./pages/Attendance";
 import { LeaveManagement } from "./pages/LeaveManagement";
 import { Payroll } from "./pages/Payroll";
 import { Departments } from "./pages/Departments";
+import { Announcements } from "./pages/Announcements";
 import { Reports } from "./pages/Reports";
 import { Settings } from "./pages/Settings";
 import { Toaster } from "./components/ui/sonner";
-export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+function AppContent() {
+  const { isAuthenticated, role, logout } = useAuth();
   const [currentPath, setCurrentPath] = useState("/dashboard");
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-    if (token && user) {
-      setIsAuthenticated(true);
-    } else {
-      setIsAuthenticated(false);
-    }
-  }, []);
+
   const handleLogin = () => {
-    setIsAuthenticated(true);
     setCurrentPath("/dashboard");
   };
+
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setIsAuthenticated(false);
+    logout();
     setCurrentPath("/dashboard");
   };
+
   const isPathAllowed = (path, role) => {
     const permissions = {
       "/dashboard": ["Admin", "HR", "Employee"],
@@ -40,6 +34,7 @@ export default function App() {
       "/payroll": ["Admin", "HR", "Employee"],
       "/employees": ["Admin", "HR"],
       "/departments": ["Admin", "HR"],
+      "/announcements": ["Admin", "HR", "Employee"],
       "/reports": ["Admin", "HR"],
       "/settings": ["Admin"]
     };
@@ -75,7 +70,7 @@ export default function App() {
 
     switch (activePath) {
       case "/dashboard":
-        return <Dashboard />;
+        return <Dashboard onNavigate={handleNavigate} />;
       case "/employees":
         return <Employees />;
       case "/attendance":
@@ -86,12 +81,14 @@ export default function App() {
         return <Payroll />;
       case "/departments":
         return <Departments />;
+      case "/announcements":
+        return <Announcements />;
       case "/reports":
         return <Reports />;
       case "/settings":
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={handleNavigate} />;
     }
   };
   return <>
@@ -100,4 +97,12 @@ export default function App() {
       </MainLayout>
       <Toaster />
     </>;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }

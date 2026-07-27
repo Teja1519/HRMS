@@ -49,18 +49,20 @@ const Payroll = sequelize.define(
     hooks: {
       // Auto-calculate NetSalary before saving
       beforeCreate: (payroll) => {
-        payroll.NetSalary =
+        const net =
           parseFloat(payroll.BasicSalary || 0) +
           parseFloat(payroll.Allowances || 0) +
           parseFloat(payroll.Bonus || 0) -
           parseFloat(payroll.Deductions || 0);
+        payroll.NetSalary = Math.round(net * 100) / 100;
       },
       beforeUpdate: (payroll) => {
-        payroll.NetSalary =
+        const net =
           parseFloat(payroll.BasicSalary || 0) +
           parseFloat(payroll.Allowances || 0) +
           parseFloat(payroll.Bonus || 0) -
           parseFloat(payroll.Deductions || 0);
+        payroll.NetSalary = Math.round(net * 100) / 100;
       },
     },
   }

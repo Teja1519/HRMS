@@ -3,7 +3,7 @@ const { successResponse, errorResponse } = require("../utils/responseHelper");
 
 const getNotifications = async (req, res, next) => {
   try {
-    const notifications = await notificationService.getNotifications(req.user.UserId);
+    const notifications = await notificationService.getNotificationsForUser(req.user);
     return successResponse(res, "Notifications fetched", notifications);
   } catch (error) {
     next(error);
@@ -12,31 +12,51 @@ const getNotifications = async (req, res, next) => {
 
 const getUnreadNotifications = async (req, res, next) => {
   try {
-    const notifications = await notificationService.getUnreadNotifications(req.user.UserId);
+    const notifications = await notificationService.getUnreadNotificationsForUser(req.user);
     return successResponse(res, "Unread notifications fetched", notifications);
   } catch (error) {
     next(error);
   }
 };
 
-const createNotification = async (req, res, next) => {
+const createAnnouncement = async (req, res, next) => {
   try {
-    const { UserId, Message } = req.body;
-    if (!UserId || !Message) return errorResponse(res, "UserId and Message are required", 400);
+    const { Message } = req.body;
+    if (!Message) return errorResponse(res, "Message is required", 400);
 
-    const notification = await notificationService.createNotification(UserId, Message);
-    return successResponse(res, "Notification created", notification, 201);
+    const announcement = await notificationService.createAnnouncement({
+      ...req.body,
+      CreatedBy: req.user.UserId,
+    });
+    return successResponse(res, "Announcement published successfully", announcement, 201);
   } catch (error) {
+    next(error);
+  }
+};
+
+const updateAnnouncement = async (req, res, next) => {
+  try {
+    const announcement = await notificationService.updateAnnouncement(req.params.id, req.body);
+    return successResponse(res, "Announcement updated successfully", announcement);
+  } catch (error) {
+    if (error.message === "Announcement not found") return errorResponse(res, error.message, 404);
+    next(error);
+  }
+};
+
+const deleteAnnouncement = async (req, res, next) => {
+  try {
+    await notificationService.deleteAnnouncement(req.params.id);
+    return successResponse(res, "Announcement deleted successfully");
+  } catch (error) {
+    if (error.message === "Announcement not found") return errorResponse(res, error.message, 404);
     next(error);
   }
 };
 
 const markAsRead = async (req, res, next) => {
   try {
-    const notification = await notificationService.markAsRead(
-      req.params.id,
-      req.user.UserId
-    );
+    const notification = await notificationService.markAsRead(req.params.id, req.user.UserId);
     return successResponse(res, "Notification marked as read", notification);
   } catch (error) {
     if (error.message === "Notification not found") return errorResponse(res, error.message, 404);
@@ -56,7 +76,9 @@ const markAllAsRead = async (req, res, next) => {
 module.exports = {
   getNotifications,
   getUnreadNotifications,
-  createNotification,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
   markAsRead,
   markAllAsRead,
 };

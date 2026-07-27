@@ -1,4 +1,5 @@
-import { User, Lock, Bell, Settings as SettingsIcon, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, Lock, Bell, Settings as SettingsIcon, Save, Building2, Clock, Globe } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -14,375 +15,157 @@ import {
   SelectTrigger,
   SelectValue
 } from "../components/ui/select";
+import api from "../lib/api";
+import { toast } from "sonner";
+
 export function Settings() {
-  return <div className="p-6 space-y-6">
-      {
-    /* Page Header */
-  }
+  const [settings, setSettings] = useState({
+    company_name: "HRMS Corp",
+    office_start_time: "09:00",
+    office_end_time: "18:00",
+    currency: "INR"
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const loadSettings = async () => {
+    try {
+      const response = await api.get("/settings");
+      if (response.data?.data) {
+        setSettings((prev) => ({ ...prev, ...response.data.data }));
+      }
+    } catch (error) {
+      console.error("Failed to load settings", error);
+    }
+  };
+
+  useEffect(() => {
+    void loadSettings();
+  }, []);
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      await api.put("/settings", settings);
+      toast.success("Company settings updated successfully!");
+      await loadSettings();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to update settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const userStr = localStorage.getItem("user");
+  const user = userStr ? JSON.parse(userStr) : null;
+
+  return (
+    <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your account settings and preferences
-        </p>
+        <h1 className="text-2xl font-bold text-foreground">Settings & Preferences</h1>
+        <p className="text-muted-foreground mt-1">Manage company rules, work hours, and portal settings</p>
       </div>
 
-      {
-    /* Settings Tabs */
-  }
-      <Tabs defaultValue="profile" className="space-y-4">
+      <Tabs defaultValue="system" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="system">
+            <Building2 className="w-4 h-4 mr-2" />
+            Company & Work Hours
+          </TabsTrigger>
           <TabsTrigger value="profile">
             <User className="w-4 h-4 mr-2" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="security">
-            <Lock className="w-4 h-4 mr-2" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="w-4 h-4 mr-2" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="system">
-            <SettingsIcon className="w-4 h-4 mr-2" />
-            System
+            My Account
           </TabsTrigger>
         </TabsList>
 
-        {
-    /* Profile Settings */
-  }
-        <TabsContent value="profile" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>
-                Update your personal information and profile details
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Avatar className="w-20 h-20">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                    AD
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-2">
-                  <Button variant="outline">Change Photo</Button>
-                  <p className="text-xs text-muted-foreground">
-                    JPG, PNG or GIF. Max size 2MB
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" defaultValue="Admin" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" defaultValue="User" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" defaultValue="admin@company.com" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" type="tel" defaultValue="+1 234-567-8900" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select defaultValue="admin">
-                  <SelectTrigger id="role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Administrator</SelectItem>
-                    <SelectItem value="hr">HR Manager</SelectItem>
-                    <SelectItem value="employee">Employee</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="department">Department</Label>
-                <Select defaultValue="hr">
-                  <SelectTrigger id="department">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hr">Human Resources</SelectItem>
-                    <SelectItem value="eng">Engineering</SelectItem>
-                    <SelectItem value="marketing">Marketing</SelectItem>
-                    <SelectItem value="sales">Sales</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex justify-end">
-                <Button>
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {
-    /* Security Settings */
-  }
-        <TabsContent value="security" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Change Password</CardTitle>
-              <CardDescription>
-                Update your password to keep your account secure
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" />
-              </div>
-
-              <div className="flex justify-end">
-                <Button>Update Password</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Two-Factor Authentication</CardTitle>
-              <CardDescription>
-                Add an extra layer of security to your account
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Enable Two-Factor Authentication</p>
-                  <p className="text-sm text-muted-foreground">
-                    Secure your account with 2FA
-                  </p>
-                </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Sessions</CardTitle>
-              <CardDescription>
-                Manage your active sessions across devices
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
-                  <div>
-                    <p className="font-medium">Current Session</p>
-                    <p className="text-sm text-muted-foreground">Chrome on Windows • New York, US</p>
-                  </div>
-                  <Badge className="bg-success/10 text-success border-success/20">Active</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
-                  <div>
-                    <p className="font-medium">Mobile Device</p>
-                    <p className="text-sm text-muted-foreground">Safari on iPhone • 2 days ago</p>
-                  </div>
-                  <Button variant="outline" size="sm">Revoke</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {
-    /* Notification Settings */
-  }
-        <TabsContent value="notifications" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Notifications</CardTitle>
-              <CardDescription>
-                Choose what email notifications you want to receive
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Leave Requests</p>
-                  <p className="text-sm text-muted-foreground">
-                    Get notified about new leave requests
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Attendance Alerts</p>
-                  <p className="text-sm text-muted-foreground">
-                    Daily attendance summary notifications
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Payroll Updates</p>
-                  <p className="text-sm text-muted-foreground">
-                    Monthly payroll processing notifications
-                  </p>
-                </div>
-                <Switch />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">System Updates</p>
-                  <p className="text-sm text-muted-foreground">
-                    Important system announcements
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Push Notifications</CardTitle>
-              <CardDescription>
-                Manage push notifications for the application
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Desktop Notifications</p>
-                  <p className="text-sm text-muted-foreground">
-                    Show desktop notifications for updates
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Sound Alerts</p>
-                  <p className="text-sm text-muted-foreground">
-                    Play sound for important notifications
-                  </p>
-                </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {
-    /* System Settings */
-  }
         <TabsContent value="system" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Appearance</CardTitle>
-              <CardDescription>
-                Customize the look and feel of the application
-              </CardDescription>
+              <CardTitle>Company & Attendance Configuration</CardTitle>
+              <CardDescription>Configure working hours, late arrival thresholds, and currency.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Theme</Label>
-                <Select defaultValue="light">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <CardContent>
+              <form onSubmit={handleSaveSettings} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Company Name</Label>
+                    <Input
+                      id="companyName"
+                      value={settings.company_name}
+                      onChange={(e) => setSettings({ ...settings, company_name: e.target.value })}
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Language</Label>
-                <Select defaultValue="en">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="es">Spanish</SelectItem>
-                    <SelectItem value="fr">French</SelectItem>
-                    <SelectItem value="de">German</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="currency">Base Currency</Label>
+                    <Select
+                      value={settings.currency}
+                      onValueChange={(val) => setSettings({ ...settings, currency: val })}
+                    >
+                      <SelectTrigger id="currency"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="INR">INR (₹)</SelectItem>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="GBP">GBP (£)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Timezone</Label>
-                <Select defaultValue="est">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="est">Eastern Time (ET)</SelectItem>
-                    <SelectItem value="pst">Pacific Time (PT)</SelectItem>
-                    <SelectItem value="cst">Central Time (CT)</SelectItem>
-                    <SelectItem value="mst">Mountain Time (MT)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="officeStartTime">Office Start Time (Late Threshold)</Label>
+                    <Input
+                      id="officeStartTime"
+                      type="time"
+                      value={settings.office_start_time}
+                      onChange={(e) => setSettings({ ...settings, office_start_time: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="officeEndTime">Office End Time</Label>
+                    <Input
+                      id="officeEndTime"
+                      type="time"
+                      value={settings.office_end_time}
+                      onChange={(e) => setSettings({ ...settings, office_end_time: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={saving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? "Saving..." : "Save Settings"}
+                  </Button>
+                </div>
+              </form>
             </CardContent>
           </Card>
+        </TabsContent>
 
+        <TabsContent value="profile" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Data & Privacy</CardTitle>
-              <CardDescription>
-                Manage your data and privacy settings
-              </CardDescription>
+              <CardTitle>Account Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Avatar className="w-16 h-16">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xl">
+                    {user?.Username?.slice(0, 2).toUpperCase() || "US"}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
-                  <p className="font-medium">Data Collection</p>
-                  <p className="text-sm text-muted-foreground">
-                    Allow anonymous usage data collection
-                  </p>
+                  <h3 className="font-semibold text-lg">{user?.Username}</h3>
+                  <Badge variant="outline">{user?.Role}</Badge>
                 </div>
-                <Switch />
-              </div>
-              <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start">
-                  Download My Data
-                </Button>
-                <Button variant="outline" className="w-full justify-start text-destructive">
-                  Delete Account
-                </Button>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-    </div>;
+    </div>
+  );
 }

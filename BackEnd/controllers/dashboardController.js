@@ -19,18 +19,39 @@ const getHRDashboard = async (req, res, next) => {
   }
 };
 
+const { User } = require("../models");
+const { associateEmployeeWithUser } = require("../services/authService");
+
+const resolveEmployeeId = async (userContext) => {
+  if (userContext.EmployeeId) return userContext.EmployeeId;
+
+  const user = await User.findByPk(userContext.UserId);
+  if (user) {
+    await associateEmployeeWithUser(user);
+    if (user.Employee) {
+      userContext.EmployeeId = user.Employee.EmployeeId;
+      return user.Employee.EmployeeId;
+    }
+  }
+  return null;
+};
+
 const getEmployeeDashboard = async (req, res, next) => {
   try {
-    const requestedEmployeeId = Number(req.params.employeeId);
+    let requestedEmployeeId = req.params.employeeId && !isNaN(req.params.employeeId)
+      ? Number(req.params.employeeId)
+      : await resolveEmployeeId(req.user);
 
     if (req.user.Role === "Employee") {
-      if (!req.user.EmployeeId || requestedEmployeeId !== req.user.EmployeeId) {
+      const myId = await resolveEmployeeId(req.user);
+      if (!myId || (requestedEmployeeId && requestedEmployeeId !== myId)) {
         return res.status(403).json({ success: false, message: "Access denied" });
       }
+      requestedEmployeeId = myId;
     }
 
     if (!requestedEmployeeId) {
-      return res.status(400).json({ success: false, message: "Employee ID is required" });
+      return res.status(400).json({ success: false, message: "Could not resolve employee profile for authenticated user." });
     }
 
     const data = await dashboardService.getEmployeeDashboard(requestedEmployeeId);

@@ -1,14 +1,14 @@
-import { Users, UserCheck, Building2, Calendar, DollarSign, TrendingUp, TrendingDown, Clock } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { useEffect, useState } from "react";
+import { Users, UserCheck, Building2, Calendar, Clock, Megaphone, LogIn, LogOut, CheckCircle2, ChevronRight, ArrowRight } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import {
   AreaChart,
   Area,
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -16,75 +16,152 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer
 } from "recharts";
-const employeeGrowthData = [
-  { month: "Jan", employees: 420 },
-  { month: "Feb", employees: 435 },
-  { month: "Mar", employees: 455 },
-  { month: "Apr", employees: 470 },
-  { month: "May", employees: 485 },
-  { month: "Jun", employees: 502 }
-];
-const attendanceData = [
-  { day: "Mon", present: 480, absent: 22, late: 15 },
-  { day: "Tue", present: 490, absent: 12, late: 8 },
-  { day: "Wed", present: 485, absent: 17, late: 10 },
-  { day: "Thu", present: 495, absent: 7, late: 5 },
-  { day: "Fri", present: 492, absent: 10, late: 12 }
-];
-const leaveData = [
-  { name: "Approved", value: 45, color: "#22C55E" },
-  { name: "Pending", value: 12, color: "#F59E0B" },
-  { name: "Rejected", value: 3, color: "#EF4444" }
-];
-const departmentData = [
-  { name: "Engineering", employees: 150 },
-  { name: "Marketing", employees: 45 },
-  { name: "Sales", employees: 80 },
-  { name: "HR", employees: 25 },
-  { name: "Finance", employees: 35 },
-  { name: "Operations", employees: 65 }
-];
-const recentActivities = [
-  { user: "John Doe", action: "submitted a leave request", time: "2 hours ago", type: "leave" },
-  { user: "Jane Smith", action: "checked in", time: "3 hours ago", type: "attendance" },
-  { user: "Mike Johnson", action: "updated profile", time: "5 hours ago", type: "profile" },
-  { user: "Sarah Wilson", action: "approved leave for Alex Brown", time: "6 hours ago", type: "approval" },
-  { user: "Tom Davis", action: "checked out", time: "8 hours ago", type: "attendance" }
-];
-const newJoiners = [];
-const upcomingHolidays = [
-  { name: "Independence Day", date: "July 4, 2026", daysLeft: 29 },
-  { name: "Labor Day", date: "September 7, 2026", daysLeft: 94 },
-  { name: "Thanksgiving", date: "November 26, 2026", daysLeft: 174 }
-];
-export function Dashboard() {
-  return <div className="p-6 space-y-6">
-      {
-    /* Page Header */
-  }
+import api from "../lib/api";
+import { toast } from "sonner";
+
+export function Dashboard({ onNavigate }) {
+  const [stats, setStats] = useState({
+    employeeCount: 0,
+    departmentCount: 0,
+    leaveCount: 0,
+    presentCount: 0
+  });
+
+  const [todayStatus, setTodayStatus] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const loadDashboardData = async () => {
+    try {
+      const [empRes, deptRes, leaveRes, todayRes, notifRes] = await Promise.all([
+        api.get("/employees").catch(() => ({ data: { data: [] } })),
+        api.get("/departments").catch(() => ({ data: { data: [] } })),
+        api.get("/leaves").catch(() => ({ data: { data: [] } })),
+        api.get("/attendance/today").catch(() => ({ data: { data: null } })),
+        api.get("/notifications").catch(() => ({ data: { data: [] } }))
+      ]);
+
+      const employees = empRes.data?.data ?? [];
+      const departments = deptRes.data?.data ?? [];
+      const leaves = leaveRes.data?.data ?? [];
+      const notifs = notifRes.data?.data ?? [];
+
+      setStats({
+        employeeCount: employees.length,
+        departmentCount: departments.length,
+        leaveCount: leaves.filter((l) => l.Status === "Pending").length,
+        presentCount: todayRes.data?.data?.status === "checked_in" || todayRes.data?.data?.status === "checked_out" ? 1 : 0
+      });
+
+      setTodayStatus(todayRes.data?.data ?? null);
+      setAnnouncements(notifs.slice(0, 3));
+    } catch (error) {
+      console.error("Failed to load dashboard data", error);
+    }
+  };
+
+  useEffect(() => {
+    void loadDashboardData();
+  }, []);
+
+  const handleCheckIn = async () => {
+    try {
+      setActionLoading(true);
+      await api.post("/attendance/checkin", {});
+      toast.success("Checked in successfully!");
+      await loadDashboardData();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to check in");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCheckOut = async () => {
+    try {
+      setActionLoading(true);
+      await api.post("/attendance/checkout", {});
+      toast.success("Checked out successfully!");
+      await loadDashboardData();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to check out");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const leaveData = [
+    { name: "Approved", value: 5, color: "#22C55E" },
+    { name: "Pending", value: stats.leaveCount, color: "#F59E0B" },
+    { name: "Rejected", value: 1, color: "#EF4444" }
+  ];
+
+  return (
+    <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">
-          Welcome back! Here's what's happening with your organization today.
+          Welcome back! Here's an overview of your organization today.
         </p>
       </div>
 
-      {
-    /* Stats Cards */
-  }
+      {/* Attendance Check-in Widget */}
+      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-card border-primary/20">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <h3 className="font-semibold text-lg">Daily Attendance Widget</h3>
+                {todayStatus?.status === "checked_in" && (
+                  <Badge className="bg-success/10 text-success border-success/20">
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Checked In ({todayStatus?.checkIn})
+                  </Badge>
+                )}
+                {todayStatus?.status === "checked_out" && (
+                  <Badge variant="secondary">
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Checked Out ({todayStatus?.checkOut})
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Working Hours Today: <span className="font-semibold text-primary">{todayStatus?.workingHours || "0.0"} hrs</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleCheckIn}
+                disabled={actionLoading || todayStatus?.status === "checked_in" || todayStatus?.status === "checked_out"}
+                className="bg-success hover:bg-success/90 text-white"
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                {todayStatus?.status === "checked_in" || todayStatus?.status === "checked_out" ? "Checked In" : "Check In"}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={handleCheckOut}
+                disabled={actionLoading || todayStatus?.status !== "checked_in"}
+                className="border-destructive text-destructive hover:bg-destructive hover:text-white"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                {todayStatus?.status === "checked_out" ? "Checked Out" : "Check Out"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Employees</p>
-                <h3 className="text-3xl font-bold mt-2">0</h3>
-                <div className="flex items-center gap-1 mt-2">
-                  <span className="text-sm text-muted-foreground">No employee data yet</span>
-                </div>
+                <h3 className="text-3xl font-bold mt-2">{stats.employeeCount}</h3>
+                <p className="text-xs text-muted-foreground mt-1">Active workforce</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Users className="w-6 h-6 text-primary" />
@@ -98,10 +175,8 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Active Today</p>
-                <h3 className="text-3xl font-bold mt-2">0</h3>
-                <div className="flex items-center gap-1 mt-2">
-                  <span className="text-sm text-muted-foreground">Attendance will appear here</span>
-                </div>
+                <h3 className="text-3xl font-bold mt-2">{stats.presentCount}</h3>
+                <p className="text-xs text-success mt-1">Checked in</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
                 <UserCheck className="w-6 h-6 text-success" />
@@ -115,10 +190,8 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Departments</p>
-                <h3 className="text-3xl font-bold mt-2">0</h3>
-                <div className="flex items-center gap-1 mt-2">
-                  <span className="text-sm text-muted-foreground">Departments will appear here</span>
-                </div>
+                <h3 className="text-3xl font-bold mt-2">{stats.departmentCount}</h3>
+                <p className="text-xs text-muted-foreground mt-1">Operational units</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
                 <Building2 className="w-6 h-6 text-warning" />
@@ -131,13 +204,11 @@ export function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Leave Requests</p>
-                <h3 className="text-3xl font-bold mt-2">0</h3>
-                <div className="flex items-center gap-1 mt-2">
-                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
-                    No pending requests
-                  </Badge>
-                </div>
+                <p className="text-sm text-muted-foreground">Pending Leaves</p>
+                <h3 className="text-3xl font-bold mt-2">{stats.leaveCount}</h3>
+                <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 mt-1">
+                  Requires action
+                </Badge>
               </div>
               <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
                 <Calendar className="w-6 h-6 text-destructive" />
@@ -147,87 +218,63 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {
-    /* Charts Section */
-  }
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {
-    /* Employee Growth */
-  }
-        <Card>
-          <CardHeader>
-            <CardTitle>Employee Growth</CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Latest Company Announcements */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-primary" />
+                Latest Announcements
+              </CardTitle>
+              <CardDescription>Recent updates and company notifications</CardDescription>
+            </div>
+            {onNavigate && (
+              <Button variant="ghost" size="sm" onClick={() => onNavigate("/announcements")}>
+                View All <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            )}
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={employeeGrowthData}>
-                <defs>
-                  <linearGradient id="colorEmployees" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="month" stroke="#64748B" />
-                <YAxis stroke="#64748B" />
-                <Tooltip />
-                <Area
-    type="monotone"
-    dataKey="employees"
-    stroke="#2563EB"
-    fillOpacity={1}
-    fill="url(#colorEmployees)"
-  />
-              </AreaChart>
-            </ResponsiveContainer>
+          <CardContent className="space-y-4">
+            {announcements.length === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground border border-dashed rounded-lg">
+                No company announcements posted yet.
+              </div>
+            ) : (
+              announcements.map((item) => (
+                <div key={item.NotificationId} className="p-4 rounded-lg bg-accent/40 border border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm">{item.Title}</span>
+                    <Badge variant="outline" className="text-[10px]">{item.Priority || "Normal"}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{item.Message}</p>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
-        {
-    /* Attendance Analytics */
-  }
+        {/* Leave Status Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Weekly Attendance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={attendanceData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="day" stroke="#64748B" />
-                <YAxis stroke="#64748B" />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="present" fill="#22C55E" name="Present" />
-                <Bar dataKey="late" fill="#F59E0B" name="Late" />
-                <Bar dataKey="absent" fill="#EF4444" name="Absent" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {
-    /* Leave Statistics */
-  }
-        <Card>
-          <CardHeader>
-            <CardTitle>Leave Requests Status</CardTitle>
+            <CardTitle>Leave Overview</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
-    data={leaveData}
-    cx="50%"
-    cy="50%"
-    labelLine={false}
-    label={({ name, value }) => `${name}: ${value}`}
-    outerRadius={100}
-    fill="#8884d8"
-    dataKey="value"
-  >
-                    {leaveData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                    data={leaveData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {leaveData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
                   </Pie>
                   <Tooltip />
                 </PieChart>
@@ -235,113 +282,7 @@ export function Dashboard() {
             </div>
           </CardContent>
         </Card>
-
-        {
-    /* Department Distribution */
-  }
-        <Card>
-          <CardHeader>
-            <CardTitle>Department Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={departmentData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis type="number" stroke="#64748B" />
-                <YAxis dataKey="name" type="category" stroke="#64748B" width={100} />
-                <Tooltip />
-                <Bar dataKey="employees" fill="#2563EB" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
       </div>
-
-      {
-    /* Bottom Section */
-  }
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {
-    /* Recent Activities */
-  }
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Recent Activities</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivities.map((activity, index) => <div key={index} className="flex items-start gap-3">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                      {activity.user.split(" ").map((n) => n[0]).join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm">
-                      <span className="font-medium">{activity.user}</span>{" "}
-                      <span className="text-muted-foreground">{activity.action}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3" />
-                      {activity.time}
-                    </p>
-                  </div>
-                </div>)}
-            </div>
-          </CardContent>
-        </Card>
-
-        {
-    /* New Joiners */
-  }
-        <Card>
-          <CardHeader>
-            <CardTitle>New Joiners</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {newJoiners.length === 0 ? <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                No new employee records yet. Add employees from the database or through the employee creation flow once it is connected.
-              </div> : <div className="space-y-4">
-                {newJoiners.map((joiner, index) => <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-accent/50">
-                    <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-success/10 text-success">
-                        {joiner.name.split(" ").map((n) => n[0]).join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{joiner.name}</p>
-                      <p className="text-xs text-muted-foreground">{joiner.position}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">{joiner.department}</Badge>
-                        <span className="text-xs text-muted-foreground">{joiner.date}</span>
-                      </div>
-                    </div>
-                  </div>)}
-              </div>}
-          </CardContent>
-        </Card>
-
-        {
-    /* Upcoming Holidays */
-  }
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Holidays</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {upcomingHolidays.map((holiday, index) => <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
-                  <div>
-                    <p className="font-medium text-sm">{holiday.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{holiday.date}</p>
-                  </div>
-                  <Badge className="bg-primary/10 text-primary border-primary/20">
-                    {holiday.daysLeft} days
-                  </Badge>
-                </div>)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>;
+    </div>
+  );
 }

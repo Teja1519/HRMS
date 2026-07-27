@@ -1,36 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Calendar, CheckCircle, XCircle, Clock, Download } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Plus, Calendar, CheckCircle, XCircle, Clock, Download, MessageSquare, Ban } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from "../components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "../components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { useAuth } from "../../context/AuthContext";
 import api from "../lib/api";
 import { toast } from "sonner";
 
@@ -38,66 +18,63 @@ const calculateDays = (startDate, endDate) => {
   if (!startDate || !endDate) return 0;
   const start = new Date(startDate);
   const end = new Date(endDate);
-  const diff = (end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24);
+  const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
   return Math.max(1, Math.round(diff + 1));
 };
 
 export function LeaveManagement() {
+  const { role } = useAuth();
+  const isAdminOrHR = role === "Admin" || role === "HR" || role === "Manager";
+
   const [leaveRequests, setLeaveRequests] = useState([]);
-  const [leaveBalance, setLeaveBalance] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0, cancelled: 0 });
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("requests");
   const [loading, setLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isDecisionOpen, setIsDecisionOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [decisionAction, setDecisionAction] = useState("Approved"); // "Approved" | "Rejected"
+  const [decisionComments, setDecisionComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [leaveForm, setLeaveForm] = useState({ LeaveTypeId: "", StartDate: "", EndDate: "", Reason: "" });
 
   const loadLeaveData = async () => {
     try {
       setLoading(true);
-      const [requestsResponse, typesResponse] = await Promise.all([api.get("/leaves"), api.get("/leaves/types")]);
-      const requestPayload = requestsResponse.data?.data ?? [];
-      const typePayload = typesResponse.data?.data ?? [];
-      const mappedRequests = requestPayload.map((request) => ({
-        id: request.LeaveRequestId,
-        employeeName: request.Employee ? `${request.Employee.FirstName ?? ""} ${request.Employee.LastName ?? ""}`.trim() : "Unknown",
-        employeeId: request.Employee?.EmployeeCode ?? "-",
-        leaveType: request.LeaveType?.LeaveTypeName ?? "Unknown",
-        startDate: request.StartDate ?? "-",
-        endDate: request.EndDate ?? "-",
-        days: calculateDays(request.StartDate, request.EndDate),
-        status: (request.Status ?? "Pending").toLowerCase(),
-        reason: request.Reason ?? "-",
-        appliedOn: request.AppliedDate ?? "-"
+      const endpoint = isAdminOrHR ? "/leaves" : "/leaves/my-leaves";
+      const [requestsRes, typesRes, statsRes] = await Promise.all([
+        api.get(endpoint),
+        api.get("/leaves/types"),
+        api.get("/leaves/stats"),
+      ]);
+
+      const reqPayload = requestsRes.data?.data ?? [];
+      const typesPayload = typesRes.data?.data ?? [];
+      const statsPayload = statsRes.data?.data ?? { total: 0, pending: 0, approved: 0, rejected: 0, cancelled: 0 };
+
+      const mapped = reqPayload.map((req) => ({
+        id: req.LeaveId,
+        employeeName: req.EmployeeName || "Unknown",
+        employeeCode: req.EmployeeCode || "-",
+        leaveTypeId: req.LeaveTypeId,
+        leaveTypeName: req.LeaveTypeName || "Leave",
+        startDate: req.StartDate,
+        endDate: req.EndDate,
+        days: req.Days || calculateDays(req.StartDate, req.EndDate),
+        status: (req.Status || "Pending").toLowerCase(),
+        rawStatus: req.Status || "Pending",
+        reason: req.Reason || "-",
+        comments: req.Comments || "-",
+        appliedDate: req.AppliedDate || "-",
       }));
-      const balanceMap = new Map();
-      typePayload.forEach((type, index) => {
-        balanceMap.set(type.LeaveTypeName, {
-          type: type.LeaveTypeName,
-          total: 20,
-          used: 0,
-          remaining: 20,
-          color: index % 2 === 0 ? "bg-primary/10" : "bg-success/10"
-        });
-      });
-      mappedRequests.forEach((request) => {
-        if (request.status === "approved") {
-          const existing = balanceMap.get(request.leaveType);
-          if (existing) {
-            existing.used += request.days;
-            existing.remaining = Math.max(0, existing.total - existing.used);
-          }
-        }
-      });
-      setLeaveTypes(typePayload.map((type) => ({ LeaveTypeId: type.LeaveTypeId, LeaveTypeName: type.LeaveTypeName })));
-      setLeaveRequests(mappedRequests);
-      setLeaveBalance(Array.from(balanceMap.values()));
+
+      setLeaveRequests(mapped);
+      setLeaveTypes(typesPayload);
+      setStats(statsPayload);
     } catch (error) {
       console.error("Failed to load leave data", error);
-      setLeaveRequests([]);
-      setLeaveBalance([]);
-      setLeaveTypes([]);
     } finally {
       setLoading(false);
     }
@@ -105,80 +82,83 @@ export function LeaveManagement() {
 
   useEffect(() => {
     void loadLeaveData();
-  }, []);
+  }, [role]);
 
-  const filteredRequests = leaveRequests.filter((request) => statusFilter === "all" || request.status === statusFilter);
+  const filteredRequests = useMemo(() => {
+    return leaveRequests.filter((r) => statusFilter === "all" || r.status === statusFilter);
+  }, [leaveRequests, statusFilter]);
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "approved":
-        return <Badge className="bg-success/10 text-success border-success/20">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Approved
-          </Badge>;
-      case "rejected":
-        return <Badge className="bg-destructive/10 text-destructive border-destructive/20">
-            <XCircle className="w-3 h-3 mr-1" />
-            Rejected
-          </Badge>;
-      case "pending":
-        return <Badge className="bg-warning/10 text-warning border-warning/20">
-            <Clock className="w-3 h-3 mr-1" />
-            Pending
-          </Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const handleApplyLeave = async (e) => {
+    e.preventDefault();
+    if (!leaveForm.LeaveTypeId) {
+      toast.error("Please select a leave type");
+      return;
     }
-  };
-
-  const pendingCount = leaveRequests.filter((request) => request.status === "pending").length;
-  const approvedCount = leaveRequests.filter((request) => request.status === "approved").length;
-  const rejectedCount = leaveRequests.filter((request) => request.status === "rejected").length;
-
-  const handleApplyLeave = async (event) => {
-    event.preventDefault();
     try {
       setIsSubmitting(true);
-      const storedUser = localStorage.getItem("user");
-      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
       await api.post("/leaves/apply", {
-        ...leaveForm,
         LeaveTypeId: Number(leaveForm.LeaveTypeId),
-        EmployeeId: parsedUser?.EmployeeId ? Number(parsedUser.EmployeeId) : undefined
+        StartDate: leaveForm.StartDate,
+        EndDate: leaveForm.EndDate,
+        Reason: leaveForm.Reason,
       });
-      toast.success("Leave request submitted successfully");
+      toast.success("Leave application submitted successfully!");
       setIsCreateOpen(false);
       setLeaveForm({ LeaveTypeId: "", StartDate: "", EndDate: "", Reason: "" });
       await loadLeaveData();
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to apply for leave");
+      toast.error(error?.response?.data?.message || "Failed to submit leave application");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleLeaveDecision = async (id, action) => {
+  const handleCancelLeave = async (leaveId) => {
     try {
-      await api.put(`/leaves/${id}/${action}`);
-      setLeaveRequests((current) => current.map((request) => request.id === id ? { ...request, status: action === "approve" ? "approved" : "rejected" } : request));
-      toast.success(`Leave request ${action === "approve" ? "approved" : "rejected"} successfully`);
+      await api.put(`/leaves/${leaveId}/cancel`, {});
+      toast.success("Leave request cancelled successfully");
+      await loadLeaveData();
     } catch (error) {
-      console.error(`Failed to ${action} leave request`, error);
-      toast.error(`Failed to ${action} leave request`);
+      toast.error(error?.response?.data?.message || "Failed to cancel leave request");
     }
   };
 
-  const handleExportLeaves = () => {
+  const openDecisionModal = (req, action) => {
+    setSelectedRequest(req);
+    setDecisionAction(action);
+    setDecisionComments("");
+    setIsDecisionOpen(true);
+  };
+
+  const handleConfirmDecision = async () => {
+    if (!selectedRequest) return;
     try {
-      const csvHeaders = ["Request ID,Employee Name,Employee ID,Leave Type,Start Date,End Date,Days,Status,Reason"];
-      const csvRows = leaveRequests.map(req => 
-        `"${req.id}","${req.employeeName}","${req.employeeId}","${req.leaveType}","${req.startDate}","${req.endDate}","${req.days}","${req.status}","${req.reason}"`
+      setIsSubmitting(true);
+      await api.put(`/leaves/${selectedRequest.id}/status`, {
+        Status: decisionAction,
+        Comments: decisionComments,
+      });
+      toast.success(`Leave request ${decisionAction.toLowerCase()} successfully`);
+      setIsDecisionOpen(false);
+      await loadLeaveData();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || `Failed to update leave request status`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleExport = () => {
+    try {
+      const csvHeaders = ["Leave ID,Employee Name,Leave Type,Start Date,End Date,Days,Status,Reason,Comments"];
+      const csvRows = leaveRequests.map((r) =>
+        `"${r.id}","${r.employeeName}","${r.leaveTypeName}","${r.startDate}","${r.endDate}","${r.days}","${r.rawStatus}","${r.reason}","${r.comments}"`
       );
       const csvContent = "data:text/csv;charset=utf-8," + [csvHeaders, ...csvRows].join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "leaves_export.csv");
+      link.setAttribute("download", `leave_report_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -188,69 +168,99 @@ export function LeaveManagement() {
     }
   };
 
-  return <div className="p-6 space-y-6">
+  const getStatusBadge = (status) => {
+    const s = String(status).toLowerCase();
+    if (s === "approved") return <Badge className="bg-success/10 text-success border-success/20"><CheckCircle className="w-3 h-3 mr-1" /> Approved</Badge>;
+    if (s === "rejected") return <Badge className="bg-destructive/10 text-destructive border-destructive/20"><XCircle className="w-3 h-3 mr-1" /> Rejected</Badge>;
+    if (s === "cancelled") return <Badge variant="secondary"><Ban className="w-3 h-3 mr-1" /> Cancelled</Badge>;
+    return <Badge className="bg-warning/10 text-warning border-warning/20"><Clock className="w-3 h-3 mr-1" /> Pending</Badge>;
+  };
+
+  return (
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Leave Management</h1>
-          <p className="text-muted-foreground mt-1">Manage employee leave requests and balances</p>
+          <p className="text-muted-foreground mt-1">Apply for leaves, track approvals, and view balance history</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={handleExportLeaves} title="Export leave requests ledger to CSV">
-            <Download className="w-4 h-4 mr-2" />
-            Export Report
+          <Button variant="outline" onClick={handleExport} title="Export leave requests to CSV">
+            <Download className="w-4 h-4 mr-2" /> Export CSV
           </Button>
+
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Apply Leave
+                <Plus className="w-4 h-4 mr-2" /> Apply Leave
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
-                <DialogTitle>Apply for leave</DialogTitle>
-                <DialogDescription>Submit a new leave request for the selected date range.</DialogDescription>
+                <DialogTitle>Apply for Leave</DialogTitle>
+                <DialogDescription>Submit a new leave application for approval.</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleApplyLeave} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="leaveType">Leave type</Label>
-                  <Select value={leaveForm.LeaveTypeId} onValueChange={(value) => setLeaveForm({ ...leaveForm, LeaveTypeId: value })}>
+                  <Label htmlFor="leaveType">Leave Type</Label>
+                  <Select
+                    value={leaveForm.LeaveTypeId}
+                    onValueChange={(val) => setLeaveForm({ ...leaveForm, LeaveTypeId: val })}
+                  >
                     <SelectTrigger id="leaveType">
                       <SelectValue placeholder="Select leave type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {leaveTypes.map((type) => <SelectItem key={type.LeaveTypeId} value={String(type.LeaveTypeId)}>
-                          {type.LeaveTypeName}
-                        </SelectItem>)}
+                      {leaveTypes.map((type) => (
+                        <SelectItem key={type.LeaveTypeId} value={String(type.LeaveTypeId)}>
+                          {type.LeaveTypeName} ({type.MaxDays} Days Max)
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="startDate">Start date</Label>
-                    <Input id="startDate" type="date" required value={leaveForm.StartDate} onChange={(event) => setLeaveForm({ ...leaveForm, StartDate: event.target.value })} />
+                    <Label htmlFor="startDate">Start Date</Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      required
+                      value={leaveForm.StartDate}
+                      onChange={(e) => setLeaveForm({ ...leaveForm, StartDate: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="endDate">End date</Label>
-                    <Input id="endDate" type="date" required value={leaveForm.EndDate} onChange={(event) => setLeaveForm({ ...leaveForm, EndDate: event.target.value })} />
+                    <Label htmlFor="endDate">End Date</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      required
+                      value={leaveForm.EndDate}
+                      onChange={(e) => setLeaveForm({ ...leaveForm, EndDate: e.target.value })}
+                    />
                   </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="reason">Reason</Label>
+                  <Label htmlFor="reason">Reason for Leave</Label>
                   <textarea
                     id="reason"
-                    rows={4}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none"
+                    rows={3}
+                    required
+                    placeholder="Provide a clear explanation for your leave..."
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     value={leaveForm.Reason}
-                    onChange={(event) => setLeaveForm({ ...leaveForm, Reason: event.target.value })}
+                    onChange={(e) => setLeaveForm({ ...leaveForm, Reason: e.target.value })}
                   />
                 </div>
+
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? "Submitting..." : "Submit leave"}
+                    {isSubmitting ? "Submitting..." : "Submit Application"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -259,13 +269,14 @@ export function LeaveManagement() {
         </div>
       </div>
 
+      {/* Leave Statistics Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Pending Requests</p>
-                <h3 className="text-3xl font-bold mt-2">{pendingCount}</h3>
+                <p className="text-sm text-muted-foreground">Pending Approval</p>
+                <h3 className="text-3xl font-bold mt-2 text-warning">{stats.pending}</h3>
               </div>
               <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
                 <Clock className="w-6 h-6 text-warning" />
@@ -278,8 +289,8 @@ export function LeaveManagement() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Approved</p>
-                <h3 className="text-3xl font-bold mt-2">{approvedCount}</h3>
+                <p className="text-sm text-muted-foreground">Approved Leaves</p>
+                <h3 className="text-3xl font-bold mt-2 text-success">{stats.approved}</h3>
               </div>
               <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
                 <CheckCircle className="w-6 h-6 text-success" />
@@ -292,8 +303,8 @@ export function LeaveManagement() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Rejected</p>
-                <h3 className="text-3xl font-bold mt-2">{rejectedCount}</h3>
+                <p className="text-sm text-muted-foreground">Rejected Requests</p>
+                <h3 className="text-3xl font-bold mt-2 text-destructive">{stats.rejected}</h3>
               </div>
               <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
                 <XCircle className="w-6 h-6 text-destructive" />
@@ -306,8 +317,8 @@ export function LeaveManagement() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">On Leave Today</p>
-                <h3 className="text-3xl font-bold mt-2">0</h3>
+                <p className="text-sm text-muted-foreground">Total Applications</p>
+                <h3 className="text-3xl font-bold mt-2 text-primary">{stats.total}</h3>
               </div>
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Calendar className="w-6 h-6 text-primary" />
@@ -317,173 +328,179 @@ export function LeaveManagement() {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="requests">Leave Requests</TabsTrigger>
-          <TabsTrigger value="balance">Leave Balance</TabsTrigger>
-          <TabsTrigger value="history">Leave History</TabsTrigger>
-        </TabsList>
+      {/* Main Leave Table Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{isAdminOrHR ? "All Employee Leave Requests" : "My Leave Applications"}</CardTitle>
+              <CardDescription>Manage and review leave applications</CardDescription>
+            </div>
 
-        <TabsContent value="requests" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Leave Requests</CardTitle>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Leave Type</TableHead>
-                    <TableHead>Start Date</TableHead>
-                    <TableHead>End Date</TableHead>
-                    <TableHead>Days</TableHead>
-                    <TableHead>Reason</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        Loading leave requests...
-                      </TableCell>
-                    </TableRow> : filteredRequests.length === 0 ? <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No leave requests have been submitted yet.
-                      </TableCell>
-                    </TableRow> : filteredRequests.map((request) => <TableRow key={request.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                              {request.employeeName.split(" ").map((n) => n[0]).join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{request.employeeName}</div>
-                            <div className="text-xs text-muted-foreground">{request.employeeId}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{request.leaveType}</Badge>
-                      </TableCell>
-                      <TableCell>{request.startDate}</TableCell>
-                      <TableCell>{request.endDate}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{request.days} days</Badge>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">{request.reason}</TableCell>
-                      <TableCell>{getStatusBadge(request.status)}</TableCell>
-                      <TableCell className="text-right">
-                        {request.status === "pending" && <div className="flex items-center gap-2 justify-end">
-                            <Button size="sm" variant="outline" className="text-success border-success hover:bg-success hover:text-white" onClick={() => handleLeaveDecision(request.id, "approve")}>
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Approve
-                            </Button>
-                            <Button size="sm" variant="outline" className="text-destructive border-destructive hover:bg-destructive hover:text-white" onClick={() => handleLeaveDecision(request.id, "reject")}>
-                              <XCircle className="w-4 h-4 mr-1" />
-                              Reject
-                            </Button>
-                          </div>}
-                      </TableCell>
-                    </TableRow>)}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
 
-        <TabsContent value="balance" className="space-y-4 mt-6">
-          {leaveBalance.length === 0 ? <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              No leave balance records are available yet.
-            </div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {leaveBalance.map((leave, index) => <Card key={`${leave.type}-${index}`}>
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold">{leave.type}</h3>
-                        <Badge className="bg-primary/10 text-primary border-primary/20">{leave.remaining} days left</Badge>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Used</span>
-                          <span className="font-medium">{leave.used} days</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Total</span>
-                          <span className="font-medium">{leave.total} days</span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div className={`${leave.color} h-2 rounded-full transition-all`} style={{ width: `${Math.min(100, leave.used / leave.total * 100)}%` }} />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>)}
-            </div>}
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-4 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Leave History</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {leaveRequests.filter(r => r.status !== "pending").length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">No leave history available yet.</div>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Employee</TableHead>
+                <TableHead>Leave Type</TableHead>
+                <TableHead>Dates</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Comments</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    Loading leave requests...
+                  </TableCell>
+                </TableRow>
+              ) : filteredRequests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    No leave requests found for the selected status.
+                  </TableCell>
+                </TableRow>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Leave Type</TableHead>
-                      <TableHead>Start Date</TableHead>
-                      <TableHead>End Date</TableHead>
-                      <TableHead>Days</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {leaveRequests.filter(r => r.status !== "pending").map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell>
-                          <div className="font-medium">{request.employeeName}</div>
-                          <div className="text-xs text-muted-foreground">{request.employeeId}</div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{request.leaveType}</Badge>
-                        </TableCell>
-                        <TableCell>{request.startDate}</TableCell>
-                        <TableCell>{request.endDate}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{request.days} days</Badge>
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">{request.reason}</TableCell>
-                        <TableCell>{getStatusBadge(request.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                filteredRequests.map((req) => (
+                  <TableRow key={req.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                            {req.employeeName.split(" ").map((n) => n[0]).join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium text-sm">{req.employeeName}</div>
+                          <div className="text-xs text-muted-foreground">{req.employeeCode}</div>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">{req.leaveTypeName}</Badge>
+                    </TableCell>
+
+                    <TableCell className="text-xs font-mono">
+                      {req.startDate} to {req.endDate}
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">{req.days} days</Badge>
+                    </TableCell>
+
+                    <TableCell className="max-w-xs truncate text-xs">{req.reason}</TableCell>
+                    <TableCell>{getStatusBadge(req.status)}</TableCell>
+                    <TableCell className="max-w-xs truncate text-xs text-muted-foreground">{req.comments}</TableCell>
+
+                    <TableCell className="text-right">
+                      {req.status === "pending" && (
+                        <div className="flex items-center gap-2 justify-end">
+                          {isAdminOrHR ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-success border-success/30 hover:bg-success hover:text-white"
+                                onClick={() => openDecisionModal(req, "Approved")}
+                              >
+                                <CheckCircle className="w-3.5 h-3.5 mr-1" /> Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive border-destructive/30 hover:bg-destructive hover:text-white"
+                                onClick={() => openDecisionModal(req, "Rejected")}
+                              >
+                                <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10"
+                              onClick={() => handleCancelLeave(req.id)}
+                            >
+                              <Ban className="w-3.5 h-3.5 mr-1" /> Cancel
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>;
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* HR Decision & Comments Modal */}
+      <Dialog open={isDecisionOpen} onOpenChange={setIsDecisionOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {decisionAction === "Approved" ? "Approve Leave Application" : "Reject Leave Application"}
+            </DialogTitle>
+            <DialogDescription>
+              Provide optional comments for <strong>{selectedRequest?.employeeName}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="p-3 bg-muted/50 rounded-lg text-xs space-y-1">
+              <div><strong>Leave Type:</strong> {selectedRequest?.leaveTypeName} ({selectedRequest?.days} days)</div>
+              <div><strong>Dates:</strong> {selectedRequest?.startDate} to {selectedRequest?.endDate}</div>
+              <div><strong>Reason:</strong> {selectedRequest?.reason}</div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="decisionComments">Decision Comments (Optional)</Label>
+              <textarea
+                id="decisionComments"
+                rows={3}
+                placeholder="Enter feedback or explanation..."
+                className="flex min-h-[70px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={decisionComments}
+                onChange={(e) => setDecisionComments(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDecisionOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={decisionAction === "Approved" ? "default" : "destructive"}
+              onClick={handleConfirmDecision}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Updating..." : `Confirm ${decisionAction}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

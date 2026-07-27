@@ -9,7 +9,7 @@ const {
   deleteEmployee,
 } = require("../controllers/employeeController");
 
-const { employeeValidation } = require("../validations/employeeValidation");
+const { employeeValidation, employeeUpdateValidation } = require("../validations/employeeValidation");
 const { handleValidationErrors } = require("../validations/validate");
 const { protect } = require("../middleware/authMiddleware");
 const { authorize } = require("../middleware/roleMiddleware");
@@ -27,7 +27,7 @@ router.get("/:id", authorize("Admin", "HR", "Employee"), getEmployeeById);
 router.post("/", authorize("Admin", "HR"), employeeValidation, handleValidationErrors, createEmployee);
 
 // PUT /api/employees/:id  — Admin, HR
-router.put("/:id", authorize("Admin", "HR"), updateEmployee);
+router.put("/:id", authorize("Admin", "HR"), employeeUpdateValidation, handleValidationErrors, updateEmployee);
 
 // DELETE /api/employees/:id  — Admin only
 router.delete("/:id", authorize("Admin"), deleteEmployee);

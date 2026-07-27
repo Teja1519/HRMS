@@ -1,121 +1,134 @@
 const leaveService = require("../services/leaveService");
 const { successResponse, errorResponse } = require("../utils/responseHelper");
+const { User, Employee } = require("../models");
+const { associateEmployeeWithUser } = require("../services/authService");
 
-// ─── Leave Types ──────────────────────────────────────────────────────────────
-const getAllLeaveTypes = async (req, res, next) => {
-  try {
-    const types = await leaveService.getAllLeaveTypes();
-    return successResponse(res, "Leave types fetched", types);
-  } catch (error) {
-    next(error);
+const resolveEmployeeId = async (userContext) => {
+  if (!userContext || !userContext.UserId) return null;
+
+  if (userContext.EmployeeId) {
+    const existingEmp = await Employee.findByPk(userContext.EmployeeId);
+    if (existingEmp) return existingEmp.EmployeeId;
   }
+
+  let user = await User.findByPk(userContext.UserId, {
+    include: [{ model: Employee, as: "Employee" }],
+  });
+
+  if (!user) return null;
+
+  if (!user.Employee) {
+    await associateEmployeeWithUser(user);
+    user = await User.findByPk(userContext.UserId, {
+      include: [{ model: Employee, as: "Employee" }],
+    });
+  }
+
+  if (user && user.Employee) {
+    userContext.EmployeeId = user.Employee.EmployeeId;
+    return user.Employee.EmployeeId;
+  }
+
+  return null;
 };
 
-const createLeaveType = async (req, res, next) => {
-  try {
-    const lt = await leaveService.createLeaveType(req.body);
-    return successResponse(res, "Leave type created", lt, 201);
-  } catch (error) {
-    if (error.message === "Leave type already exists") return errorResponse(res, error.message, 409);
-    next(error);
-  }
-};
-
-const updateLeaveType = async (req, res, next) => {
-  try {
-    const lt = await leaveService.updateLeaveType(req.params.id, req.body);
-    return successResponse(res, "Leave type updated", lt);
-  } catch (error) {
-    if (error.message === "Leave type not found") return errorResponse(res, error.message, 404);
-    next(error);
-  }
-};
-
-const deleteLeaveType = async (req, res, next) => {
-  try {
-    await leaveService.deleteLeaveType(req.params.id);
-    return successResponse(res, "Leave type deleted");
-  } catch (error) {
-    if (error.message === "Leave type not found") return errorResponse(res, error.message, 404);
-    next(error);
-  }
-};
-
-// ─── Leave Requests ───────────────────────────────────────────────────────────
 const applyLeave = async (req, res, next) => {
   try {
-    const employeeId = req.user.Role === "Employee"
-      ? req.user.EmployeeId
-      : req.body.EmployeeId || req.user.EmployeeId;
+    const employeeId = await resolveEmployeeId(req.user);
+    if (!employeeId) {
+      return errorResponse(res, "Could not resolve employee profile for authenticated user.", 400);
+    }
 
-    if (!employeeId) return errorResponse(res, "Employee ID is required", 400);
+    const result = await leaveService.applyLeave({
+      EmployeeId: employeeId,
+      LeaveTypeId: req.body.LeaveTypeId,
+      StartDate: req.body.StartDate,
+      EndDate: req.body.EndDate,
+      Reason: req.body.Reason,
+    });
 
-    const leave = await leaveService.applyLeave(employeeId, req.body);
-    return successResponse(res, "Leave application submitted", leave, 201);
+    return successResponse(res, "Leave application submitted successfully", result, 201);
   } catch (error) {
-    if (error.message === "Employee not found" || error.message === "Invalid leave type") {
-      return errorResponse(res, error.message, 404);
+    if (error.message.includes("End date cannot be prior") || error.message.includes("Invalid")) {
+      return errorResponse(res, error.message, 400);
     }
     next(error);
   }
 };
 
-const getAllLeaveRequests = async (req, res, next) => {
+const cancelLeave = async (req, res, next) => {
   try {
-    const requests = await leaveService.getAllLeaveRequests();
-    return successResponse(res, "Leave requests fetched", requests);
+    const employeeId = await resolveEmployeeId(req.user);
+    const leaveId = Number(req.params.id);
+    const result = await leaveService.cancelLeave(leaveId, employeeId);
+    return successResponse(res, "Leave application cancelled", result);
   } catch (error) {
-    next(error);
-  }
-};
-
-const getMyLeaveRequests = async (req, res, next) => {
-  try {
-    const requestedEmployeeId = Number(req.params.employeeId);
-
-    if (req.user.Role === "Employee") {
-      if (!req.user.EmployeeId || requestedEmployeeId !== req.user.EmployeeId) {
-        return errorResponse(res, "Access denied", 403);
-      }
+    if (error.message.includes("Unauthorized") || error.message.includes("Only pending")) {
+      return errorResponse(res, error.message, 400);
     }
+    next(error);
+  }
+};
 
-    const requests = await leaveService.getLeaveRequestsByEmployee(requestedEmployeeId);
-    return successResponse(res, "Leave requests fetched", requests);
+const updateLeaveStatus = async (req, res, next) => {
+  try {
+    const leaveId = Number(req.params.id);
+    const { Status, Comments } = req.body;
+    const result = await leaveService.updateLeaveStatus(leaveId, Status, Comments);
+    return successResponse(res, `Leave request ${Status.toLowerCase()}`, result);
+  } catch (error) {
+    if (error.message.includes("Status must be")) return errorResponse(res, error.message, 400);
+    next(error);
+  }
+};
+
+const getLeaveTypes = async (req, res, next) => {
+  try {
+    const types = await leaveService.getLeaveTypes();
+    return successResponse(res, "Leave types fetched successfully", types);
   } catch (error) {
     next(error);
   }
 };
 
-const approveLeave = async (req, res, next) => {
+const getAllLeaves = async (req, res, next) => {
   try {
-    const leave = await leaveService.approveLeave(req.params.id);
-    return successResponse(res, "Leave approved", leave);
+    const status = req.query.status || null;
+    const leaves = await leaveService.getAllLeaves(status);
+    return successResponse(res, "All leave requests fetched", leaves);
   } catch (error) {
-    if (error.message === "Leave request not found") return errorResponse(res, error.message, 404);
-    if (error.message === "Leave request already processed") return errorResponse(res, error.message, 409);
     next(error);
   }
 };
 
-const rejectLeave = async (req, res, next) => {
+const getMyLeaves = async (req, res, next) => {
   try {
-    const leave = await leaveService.rejectLeave(req.params.id);
-    return successResponse(res, "Leave rejected", leave);
+    const employeeId = await resolveEmployeeId(req.user);
+    if (!employeeId) return successResponse(res, "Personal leaves fetched", []);
+
+    const leaves = await leaveService.getLeavesByEmployee(employeeId);
+    return successResponse(res, "Personal leaves fetched", leaves);
   } catch (error) {
-    if (error.message === "Leave request not found") return errorResponse(res, error.message, 404);
-    if (error.message === "Leave request already processed") return errorResponse(res, error.message, 409);
+    next(error);
+  }
+};
+
+const getLeaveStats = async (req, res, next) => {
+  try {
+    const employeeId = req.user.Role === "Employee" ? await resolveEmployeeId(req.user) : null;
+    const stats = await leaveService.getLeaveStatistics(employeeId);
+    return successResponse(res, "Leave statistics fetched", stats);
+  } catch (error) {
     next(error);
   }
 };
 
 module.exports = {
-  getAllLeaveTypes,
-  createLeaveType,
-  updateLeaveType,
-  deleteLeaveType,
   applyLeave,
-  getAllLeaveRequests,
-  getMyLeaveRequests,
-  approveLeave,
-  rejectLeave,
+  cancelLeave,
+  updateLeaveStatus,
+  getLeaveTypes,
+  getAllLeaves,
+  getMyLeaves,
+  getLeaveStats,
 };

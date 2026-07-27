@@ -1,90 +1,158 @@
-const { LeaveRequest, LeaveType, Employee } = require("../models");
+const { LeaveRequest, LeaveType, Employee, Department } = require("../models");
+const { toLeaveDTO } = require("../dtos/LeaveDTO");
 
-// ─── Leave Types ──────────────────────────────────────────────────────────────
-const getAllLeaveTypes = async () => await LeaveType.findAll();
+const applyLeave = async ({ EmployeeId, LeaveTypeId, StartDate, EndDate, Reason }) => {
+  if (!EmployeeId) {
+    throw new Error("Employee profile not found for authenticated user");
+  }
 
-const createLeaveType = async (data) => {
-  const existing = await LeaveType.findOne({ where: { LeaveTypeName: data.LeaveTypeName } });
-  if (existing) throw new Error("Leave type already exists");
-  return await LeaveType.create(data);
-};
+  const start = new Date(StartDate);
+  const end = new Date(EndDate);
 
-const updateLeaveType = async (id, data) => {
-  const lt = await LeaveType.findByPk(id);
-  if (!lt) throw new Error("Leave type not found");
-  await lt.update(data);
-  return lt;
-};
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    throw new Error("Invalid start or end date format");
+  }
 
-const deleteLeaveType = async (id) => {
-  const lt = await LeaveType.findByPk(id);
-  if (!lt) throw new Error("Leave type not found");
-  await lt.destroy();
-};
+  if (end < start) {
+    throw new Error("End date cannot be prior to start date");
+  }
 
-// ─── Leave Requests ───────────────────────────────────────────────────────────
-const applyLeave = async (employeeId, data) => {
-  const employee = await Employee.findByPk(employeeId);
-  if (!employee) throw new Error("Employee not found");
+  const leaveType = await LeaveType.findByPk(LeaveTypeId);
+  if (!leaveType) {
+    throw new Error("Invalid leave type selected");
+  }
 
-  const leaveType = await LeaveType.findByPk(data.LeaveTypeId);
-  if (!leaveType) throw new Error("Invalid leave type");
+  const emp = await Employee.findByPk(EmployeeId);
+  if (!emp) {
+    throw new Error("Employee record not found in database");
+  }
 
-  const today = new Date().toISOString().split("T")[0];
-
-  return await LeaveRequest.create({
-    EmployeeId: employeeId,
-    LeaveTypeId: data.LeaveTypeId,
-    StartDate: data.StartDate,
-    EndDate: data.EndDate,
-    Reason: data.Reason || null,
+  const leave = await LeaveRequest.create({
+    EmployeeId,
+    LeaveTypeId,
+    StartDate,
+    EndDate,
+    Reason,
     Status: "Pending",
-    AppliedDate: today,
+    AppliedDate: new Date().toISOString().slice(0, 10),
   });
-};
 
-const getAllLeaveRequests = async () => {
-  return await LeaveRequest.findAll({
+  const fullLeave = await LeaveRequest.findByPk(leave.LeaveId, {
     include: [
-      { model: Employee, as: "Employee", attributes: ["EmployeeId", "FirstName", "LastName"] },
-      { model: LeaveType, as: "LeaveType", attributes: ["LeaveTypeId", "LeaveTypeName"] },
+      { model: Employee, as: "Employee", include: [{ model: Department, as: "Department" }] },
+      { model: LeaveType, as: "LeaveType" },
     ],
-    order: [["AppliedDate", "DESC"]],
   });
+
+  return toLeaveDTO(fullLeave);
 };
 
-const getLeaveRequestsByEmployee = async (employeeId) => {
-  return await LeaveRequest.findAll({
+const cancelLeave = async (leaveId, employeeId) => {
+  const leave = await LeaveRequest.findByPk(leaveId);
+  if (!leave) {
+    throw new Error("Leave request not found");
+  }
+
+  if (employeeId && leave.EmployeeId !== employeeId) {
+    throw new Error("Unauthorized to cancel this leave application");
+  }
+
+  if (leave.Status !== "Pending") {
+    throw new Error("Only pending leave applications can be cancelled");
+  }
+
+  await leave.update({ Status: "Cancelled" });
+
+  const fullLeave = await LeaveRequest.findByPk(leave.LeaveId, {
+    include: [
+      { model: Employee, as: "Employee" },
+      { model: LeaveType, as: "LeaveType" },
+    ],
+  });
+
+  return toLeaveDTO(fullLeave);
+};
+
+const updateLeaveStatus = async (leaveId, status, comments = null) => {
+  const validStatuses = ["Approved", "Rejected"];
+  if (!validStatuses.includes(status)) {
+    throw new Error("Status must be either Approved or Rejected");
+  }
+
+  const leave = await LeaveRequest.findByPk(leaveId);
+  if (!leave) {
+    throw new Error("Leave request not found");
+  }
+
+  await leave.update({
+    Status: status,
+    Comments: comments || null,
+  });
+
+  const fullLeave = await LeaveRequest.findByPk(leave.LeaveId, {
+    include: [
+      { model: Employee, as: "Employee", include: [{ model: Department, as: "Department" }] },
+      { model: LeaveType, as: "LeaveType" },
+    ],
+  });
+
+  return toLeaveDTO(fullLeave);
+};
+
+const getLeaveTypes = async () => {
+  return await LeaveType.findAll({ order: [["LeaveTypeId", "ASC"]] });
+};
+
+const getAllLeaves = async (status = null) => {
+  const where = {};
+  if (status && status !== "all") {
+    where.Status = status;
+  }
+
+  const leaves = await LeaveRequest.findAll({
+    where,
+    include: [
+      { model: Employee, as: "Employee", include: [{ model: Department, as: "Department" }] },
+      { model: LeaveType, as: "LeaveType" },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+
+  return leaves.map(toLeaveDTO);
+};
+
+const getLeavesByEmployee = async (employeeId) => {
+  const leaves = await LeaveRequest.findAll({
     where: { EmployeeId: employeeId },
-    include: [{ model: LeaveType, as: "LeaveType" }],
-    order: [["AppliedDate", "DESC"]],
+    include: [
+      { model: Employee, as: "Employee" },
+      { model: LeaveType, as: "LeaveType" },
+    ],
+    order: [["createdAt", "DESC"]],
   });
+
+  return leaves.map(toLeaveDTO);
 };
 
-const approveLeave = async (leaveId) => {
-  const leave = await LeaveRequest.findByPk(leaveId);
-  if (!leave) throw new Error("Leave request not found");
-  if (leave.Status !== "Pending") throw new Error("Leave request already processed");
-  await leave.update({ Status: "Approved" });
-  return leave;
-};
+const getLeaveStatistics = async (employeeId = null) => {
+  const where = employeeId ? { EmployeeId: employeeId } : {};
+  const leaves = await LeaveRequest.findAll({ where });
 
-const rejectLeave = async (leaveId) => {
-  const leave = await LeaveRequest.findByPk(leaveId);
-  if (!leave) throw new Error("Leave request not found");
-  if (leave.Status !== "Pending") throw new Error("Leave request already processed");
-  await leave.update({ Status: "Rejected" });
-  return leave;
+  return {
+    total: leaves.length,
+    pending: leaves.filter((l) => l.Status === "Pending").length,
+    approved: leaves.filter((l) => l.Status === "Approved").length,
+    rejected: leaves.filter((l) => l.Status === "Rejected").length,
+    cancelled: leaves.filter((l) => l.Status === "Cancelled").length,
+  };
 };
 
 module.exports = {
-  getAllLeaveTypes,
-  createLeaveType,
-  updateLeaveType,
-  deleteLeaveType,
   applyLeave,
-  getAllLeaveRequests,
-  getLeaveRequestsByEmployee,
-  approveLeave,
-  rejectLeave,
+  cancelLeave,
+  updateLeaveStatus,
+  getLeaveTypes,
+  getAllLeaves,
+  getLeavesByEmployee,
+  getLeaveStatistics,
 };

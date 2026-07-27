@@ -1,42 +1,79 @@
 const attendanceService = require("../services/attendanceService");
 const { successResponse, errorResponse } = require("../utils/responseHelper");
+const { User, Employee } = require("../models");
+const { associateEmployeeWithUser } = require("../services/authService");
+
+const resolveEmployeeId = async (userContext) => {
+  if (!userContext || !userContext.UserId) return null;
+
+  if (userContext.EmployeeId) {
+    const existingEmp = await Employee.findByPk(userContext.EmployeeId);
+    if (existingEmp) return existingEmp.EmployeeId;
+  }
+
+  let user = await User.findByPk(userContext.UserId, {
+    include: [{ model: Employee, as: "Employee" }],
+  });
+
+  if (!user) return null;
+
+  if (!user.Employee) {
+    await associateEmployeeWithUser(user);
+    user = await User.findByPk(userContext.UserId, {
+      include: [{ model: Employee, as: "Employee" }],
+    });
+  }
+
+  if (user && user.Employee) {
+    userContext.EmployeeId = user.Employee.EmployeeId;
+    return user.Employee.EmployeeId;
+  }
+
+  return null;
+};
 
 const checkIn = async (req, res, next) => {
   try {
-    const employeeId = req.user.Role === "Employee"
-      ? req.user.EmployeeId
-      : req.body.EmployeeId || req.user.EmployeeId;
-
-    if (!employeeId) return errorResponse(res, "Employee ID is required", 400);
+    const employeeId = await resolveEmployeeId(req.user);
+    if (!employeeId) {
+      return errorResponse(res, "Could not resolve employee profile for authenticated user.", 400);
+    }
 
     const record = await attendanceService.checkIn(employeeId);
     return successResponse(res, "Check-in recorded successfully", record, 201);
   } catch (error) {
-    if (error.message === "Already checked in for today") return errorResponse(res, error.message, 409);
+    if (error.message.includes("Validation Error") || error.message.includes("Already checked in")) {
+      return errorResponse(res, error.message, 400);
+    }
     next(error);
   }
 };
 
 const checkOut = async (req, res, next) => {
   try {
-    const employeeId = req.user.Role === "Employee"
-      ? req.user.EmployeeId
-      : req.body.EmployeeId || req.user.EmployeeId;
-
-    if (!employeeId) return errorResponse(res, "Employee ID is required", 400);
+    const employeeId = await resolveEmployeeId(req.user);
+    if (!employeeId) {
+      return errorResponse(res, "Could not resolve employee profile for authenticated user.", 400);
+    }
 
     const record = await attendanceService.checkOut(employeeId);
     return successResponse(res, "Check-out recorded successfully", record);
   } catch (error) {
-    if (error.message === "No check-in found for today") return errorResponse(res, error.message, 404);
-    if (error.message === "Already checked out today") return errorResponse(res, error.message, 409);
+    if (error.message.includes("Validation Error") || error.message.includes("No check-in found")) {
+      return errorResponse(res, error.message, 400);
+    }
     next(error);
   }
 };
 
 const getAllAttendance = async (req, res, next) => {
   try {
-    const records = await attendanceService.getAllAttendance();
+    const filters = {
+      date: req.query.date,
+      month: req.query.month,
+      status: req.query.status,
+    };
+    const records = await attendanceService.getAllAttendance(filters);
     return successResponse(res, "Attendance records fetched", records);
   } catch (error) {
     next(error);
@@ -53,7 +90,8 @@ const getAttendanceByEmployee = async (req, res, next) => {
       }
     }
 
-    const records = await attendanceService.getAttendanceByEmployee(requestedEmployeeId);
+    const month = req.query.month || null;
+    const records = await attendanceService.getAttendanceByEmployee(requestedEmployeeId, month);
     return successResponse(res, "Attendance fetched", records);
   } catch (error) {
     if (error.message === "Employee not found") return errorResponse(res, error.message, 404);
@@ -61,4 +99,42 @@ const getAttendanceByEmployee = async (req, res, next) => {
   }
 };
 
-module.exports = { checkIn, checkOut, getAllAttendance, getAttendanceByEmployee };
+const getTodayStatus = async (req, res, next) => {
+  try {
+    const employeeId = await resolveEmployeeId(req.user);
+    if (!employeeId) return successResponse(res, "Today attendance status", { status: "no_employee_profile" });
+
+    const statusData = await attendanceService.getTodayStatus(employeeId);
+    return successResponse(res, "Today attendance status fetched", statusData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getLateReport = async (req, res, next) => {
+  try {
+    const records = await attendanceService.getLateEmployees(req.query.date);
+    return successResponse(res, "Late employees fetched", records);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAbsentReport = async (req, res, next) => {
+  try {
+    const records = await attendanceService.getAbsentEmployees(req.query.date);
+    return successResponse(res, "Absent employees fetched", records);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  checkIn,
+  checkOut,
+  getTodayStatus,
+  getAllAttendance,
+  getAttendanceByEmployee,
+  getLateReport,
+  getAbsentReport,
+};

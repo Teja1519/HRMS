@@ -55,8 +55,18 @@ const updateEmployee = async (id, data) => {
     if (emailExists) throw new Error("Email already in use");
   }
 
+  if (data.EmployeeCode && data.EmployeeCode !== employee.EmployeeCode) {
+    const codeExists = await Employee.findOne({
+      where: { EmployeeCode: data.EmployeeCode, EmployeeId: { [Op.ne]: id } },
+    });
+    if (codeExists) throw new Error("Employee code already exists");
+  }
+
   await employee.update(data);
-  return employee;
+
+  return await Employee.findByPk(id, {
+    include: [{ model: Department, as: "Department", attributes: ["DepartmentId", "DepartmentName"] }],
+  });
 };
 
 const deleteEmployee = async (id) => {

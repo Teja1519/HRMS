@@ -1,28 +1,19 @@
 const express = require("express");
 const router = express.Router();
-
-const {
-  checkIn,
-  checkOut,
-  getAllAttendance,
-  getAttendanceByEmployee,
-} = require("../controllers/attendanceController");
-
+const attendanceController = require("../controllers/attendanceController");
 const { protect } = require("../middleware/authMiddleware");
 const { authorize } = require("../middleware/roleMiddleware");
 
 router.use(protect);
 
-// POST /api/attendance/checkin  — Employee, HR, Admin
-router.post("/checkin", authorize("Admin", "HR", "Employee"), checkIn);
+router.post("/checkin", attendanceController.checkIn);
+router.post("/checkout", attendanceController.checkOut);
+router.get("/today", attendanceController.getTodayStatus);
 
-// POST /api/attendance/checkout  — Employee, HR, Admin
-router.post("/checkout", authorize("Admin", "HR", "Employee"), checkOut);
+router.get("/late", authorize("Admin", "HR", "Manager"), attendanceController.getLateReport);
+router.get("/absent", authorize("Admin", "HR", "Manager"), attendanceController.getAbsentReport);
 
-// GET /api/attendance  — Admin, HR
-router.get("/", authorize("Admin", "HR"), getAllAttendance);
-
-// GET /api/attendance/:employeeId  — Admin, HR, Employee
-router.get("/:employeeId", authorize("Admin", "HR", "Employee"), getAttendanceByEmployee);
+router.get("/employee/:employeeId", attendanceController.getAttendanceByEmployee);
+router.get("/", authorize("Admin", "HR", "Manager"), attendanceController.getAllAttendance);
 
 module.exports = router;

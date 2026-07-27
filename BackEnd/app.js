@@ -17,7 +17,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ─── API Routes ───────────────────────────────────────────────────────────────
 app.use("/api/auth",          require("./routes/authRoutes"));
 app.use("/api/employees",     require("./routes/employeeRoutes"));
 app.use("/api/departments",   require("./routes/departmentRoutes"));
@@ -26,6 +25,8 @@ app.use("/api/leaves",        require("./routes/leaveRoutes"));
 app.use("/api/payroll",       require("./routes/payrollRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/dashboard",     require("./routes/dashboardRoutes"));
+app.use("/api/settings",      require("./routes/settingRoutes"));
+app.use("/api/reports",       require("./routes/reportRoutes"));
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {

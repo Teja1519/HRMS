@@ -6,6 +6,7 @@ import {
   Wallet,
   Building2,
   BarChart3,
+  Megaphone,
   Settings,
   ChevronRight,
   LogOut
@@ -21,6 +22,7 @@ const menuItems = [
   { icon: CalendarClock, label: "Leave Management", path: "/leave", roles: ["Admin", "HR", "Employee"] },
   { icon: Wallet, label: "Payroll", path: "/payroll", roles: ["Admin", "HR", "Employee"] },
   { icon: Building2, label: "Departments", path: "/departments", roles: ["Admin", "HR"] },
+  { icon: Megaphone, label: "Announcements", path: "/announcements", roles: ["Admin", "HR", "Employee"] },
   { icon: BarChart3, label: "Reports", path: "/reports", roles: ["Admin", "HR"] },
   { icon: Settings, label: "Settings", path: "/settings", roles: ["Admin"] }
 ];

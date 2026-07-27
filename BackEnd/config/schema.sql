@@ -116,11 +116,19 @@ CREATE TABLE IF NOT EXISTS Reports (
 -- Notifications
 CREATE TABLE IF NOT EXISTS Notifications (
   NotificationId  INT AUTO_INCREMENT PRIMARY KEY,
-  UserId          INT NOT NULL,
+  Title           VARCHAR(150) NOT NULL DEFAULT 'Announcement',
   Message         TEXT NOT NULL,
+  Priority        ENUM('Normal', 'Important', 'Urgent') DEFAULT 'Normal',
+  Audience        ENUM('All', 'Department', 'User') DEFAULT 'All',
+  DepartmentId    INT NULL,
+  UserId          INT NULL,
+  CreatedBy       INT NULL,
   IsRead          BOOLEAN DEFAULT FALSE,
   CreatedAt       DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
+  UpdatedAt       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (DepartmentId) REFERENCES Departments(DepartmentId) ON DELETE SET NULL,
+  FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE,
+  FOREIGN KEY (CreatedBy) REFERENCES Users(UserId) ON DELETE SET NULL
 );
 
 -- Settings

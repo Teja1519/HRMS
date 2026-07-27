@@ -2,16 +2,21 @@
  * Send a standardized success response
  */
 const successResponse = (res, message, data = null, statusCode = 200) => {
-  const response = { success: true, message };
-  if (data !== null) response.data = data;
-  return res.status(statusCode).json(response);
+  return res.status(statusCode).json({
+    success: true,
+    message,
+    data: data !== null ? data : null,
+    errors: null,
+  });
 };
 
-/**
- * Send a standardized error response
- */
-const errorResponse = (res, message, statusCode = 400) => {
-  return res.status(statusCode).json({ success: false, message });
+const errorResponse = (res, message, statusCode = 400, errors = null) => {
+  return res.status(statusCode).json({
+    success: false,
+    message,
+    data: null,
+    errors: errors || null,
+  });
 };
 
 module.exports = { successResponse, errorResponse };
