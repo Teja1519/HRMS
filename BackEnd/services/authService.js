@@ -25,33 +25,29 @@ const associateEmployeeWithUser = async (user) => {
   try {
     let employee = await Employee.findOne({ where: { UserId: user.UserId } });
 
-    if (!employee && user.Username) {
-      employee = await Employee.findOne({ where: { Email: user.Username } });
-    }
-
-    if (employee) {
-      if (!employee.UserId) {
-        await employee.update({ UserId: user.UserId });
-      }
-    } else {
+    if (!employee) {
       const rawUsername = user.Username || `user${user.UserId}`;
-      const email = rawUsername.includes("@") ? rawUsername : `${rawUsername}@hrms.local`;
       const code = `EMP-U${user.UserId}`;
+      const email = rawUsername.includes("@") ? rawUsername : `${rawUsername}_${user.UserId}@hrms.local`;
 
-      let existingWithCode = await Employee.findOne({ where: { EmployeeCode: code } });
-      const finalCode = existingWithCode ? `EMP-U${user.UserId}-${Date.now().toString().slice(-4)}` : code;
+      // Find by Email or Code
+      employee = await Employee.findOne({
+        where: {
+          [Op.or]: [{ Email: email }, { EmployeeCode: code }],
+        },
+      });
 
-      let existingWithEmail = await Employee.findOne({ where: { Email: email } });
-      if (existingWithEmail) {
-        await existingWithEmail.update({ UserId: user.UserId });
-        employee = existingWithEmail;
+      if (employee) {
+        if (employee.UserId !== user.UserId) {
+          await employee.update({ UserId: user.UserId });
+        }
       } else {
         const nameParts = rawUsername.split("@")[0].split(/[\._]/);
         const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : "System";
         const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : (user.Role || "User");
 
         employee = await Employee.create({
-          EmployeeCode: finalCode,
+          EmployeeCode: code,
           FirstName: firstName,
           LastName: lastName,
           Email: email,

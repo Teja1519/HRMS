@@ -1,3 +1,6 @@
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
+
 const JWT_SECRET = process.env.JWT_SECRET || "hrms_jwt_secret_key_2026";
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "hrms_jwt_refresh_secret_key_2026";
 

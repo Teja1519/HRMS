@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { MainLayout } from "./components/layout/MainLayout";
 import { Login } from "./pages/auth/Login";
 import { Dashboard } from "./pages/Dashboard";
+import { Profile } from "./pages/Profile";
 import { Employees } from "./pages/Employees";
 import { Attendance } from "./pages/Attendance";
 import { LeaveManagement } from "./pages/LeaveManagement";
@@ -14,7 +15,7 @@ import { Settings } from "./pages/Settings";
 import { Toaster } from "./components/ui/sonner";
 
 function AppContent() {
-  const { isAuthenticated, role, logout } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
   const [currentPath, setCurrentPath] = useState("/dashboard");
 
   const handleLogin = () => {
@@ -29,6 +30,7 @@ function AppContent() {
   const isPathAllowed = (path, role) => {
     const permissions = {
       "/dashboard": ["Admin", "HR", "Employee"],
+      "/profile": ["Admin", "HR", "Employee"],
       "/attendance": ["Admin", "HR", "Employee"],
       "/leave": ["Admin", "HR", "Employee"],
       "/payroll": ["Admin", "HR", "Employee"],
@@ -36,7 +38,7 @@ function AppContent() {
       "/departments": ["Admin", "HR"],
       "/announcements": ["Admin", "HR", "Employee"],
       "/reports": ["Admin", "HR"],
-      "/settings": ["Admin"]
+      "/settings": ["Admin"],
     };
     const allowedRoles = permissions[path] || ["Admin"];
     return allowedRoles.includes(role);
@@ -55,10 +57,12 @@ function AppContent() {
   };
 
   if (!isAuthenticated) {
-    return <>
+    return (
+      <>
         <Login onLogin={handleLogin} onNavigate={handleNavigate} />
         <Toaster />
-      </>;
+      </>
+    );
   }
 
   const renderPage = () => {
@@ -71,6 +75,8 @@ function AppContent() {
     switch (activePath) {
       case "/dashboard":
         return <Dashboard onNavigate={handleNavigate} />;
+      case "/profile":
+        return <Profile />;
       case "/employees":
         return <Employees />;
       case "/attendance":
@@ -91,12 +97,15 @@ function AppContent() {
         return <Dashboard onNavigate={handleNavigate} />;
     }
   };
-  return <>
+
+  return (
+    <>
       <MainLayout currentPath={currentPath} onNavigate={handleNavigate} onLogout={handleLogout}>
         {renderPage()}
       </MainLayout>
       <Toaster />
-    </>;
+    </>
+  );
 }
 
 export default function App() {

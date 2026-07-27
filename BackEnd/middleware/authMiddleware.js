@@ -1,6 +1,6 @@
-const jwt = require("jsonwebtoken");
 const { User, Employee } = require("../models");
-const { buildAuthenticatedUserContext } = require("../services/authService");
+const { verifyAccessToken } = require("../utils/jwtHelper");
+const { buildAuthenticatedUserContext, associateEmployeeWithUser } = require("../services/authService");
 
 const protect = async (req, res, next) => {
   try {
@@ -20,9 +20,10 @@ const protect = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyAccessToken(token);
 
-    const user = await User.findByPk(decoded.UserId, {
+    let user = await User.findByPk(decoded.UserId, {
+      attributes: ["UserId", "Username", "Role"],
       include: [{ model: Employee, as: "Employee", attributes: ["EmployeeId", "EmployeeCode"] }],
     });
 
@@ -33,11 +34,10 @@ const protect = async (req, res, next) => {
       });
     }
 
-    const { buildAuthenticatedUserContext, associateEmployeeWithUser } = require("../services/authService");
-
     if (!user.Employee) {
       await associateEmployeeWithUser(user);
       user = await User.findByPk(decoded.UserId, {
+        attributes: ["UserId", "Username", "Role"],
         include: [{ model: Employee, as: "Employee" }],
       });
     }

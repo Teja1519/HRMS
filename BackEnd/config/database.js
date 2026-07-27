@@ -59,6 +59,7 @@ const seedInitialData = async () => {
       ]);
       console.log("🌱 Default Settings seeded");
     }
+
   } catch (error) {
     console.error("⚠️ Error seeding initial data:", error.message);
   }
@@ -66,26 +67,115 @@ const seedInitialData = async () => {
 
 const ensureSchemaUpToDate = async () => {
   try {
-    const [empCols] = await sequelize.query(`
-      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Employees' AND COLUMN_NAME = 'UserId'
-    `);
-    if (empCols.length === 0) {
-      await sequelize.query("ALTER TABLE Employees ADD COLUMN UserId INT NULL UNIQUE");
-      console.log("🛠️ Added missing UserId column to Employees table in MySQL");
+    const queryInterface = sequelize.getQueryInterface();
+
+    // 1. Check Users table columns
+    const userCols = await queryInterface.describeTable("Users").catch(() => ({}));
+    if (!userCols.ResetPasswordToken) {
+      await sequelize.query("ALTER TABLE Users ADD COLUMN ResetPasswordToken VARCHAR(255) NULL");
+      console.log("🛠️ Added ResetPasswordToken to Users table");
+    }
+    if (!userCols.ResetPasswordExpires) {
+      await sequelize.query("ALTER TABLE Users ADD COLUMN ResetPasswordExpires DATETIME NULL");
+      console.log("🛠️ Added ResetPasswordExpires to Users table");
+    }
+    if (!userCols.RefreshToken) {
+      await sequelize.query("ALTER TABLE Users ADD COLUMN RefreshToken VARCHAR(500) NULL");
+      console.log("🛠️ Added RefreshToken to Users table");
     }
 
-    const [notifCols] = await sequelize.query(`
-      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Notifications' AND COLUMN_NAME = 'Title'
-    `);
-    if (notifCols.length === 0) {
+    // 2. Check Employees table columns
+    const empCols = await queryInterface.describeTable("Employees").catch(() => ({}));
+    if (!empCols.UserId) {
+      await sequelize.query("ALTER TABLE Employees ADD COLUMN UserId INT NULL UNIQUE");
+      console.log("🛠️ Added UserId to Employees table");
+    }
+
+    const newEmpFields = [
+      { name: "BloodGroup", type: "VARCHAR(10) NULL" },
+      { name: "MaritalStatus", type: "VARCHAR(20) NULL" },
+      { name: "Nationality", type: "VARCHAR(50) NULL" },
+      { name: "AlternatePhone", type: "VARCHAR(20) NULL" },
+      { name: "City", type: "VARCHAR(100) NULL" },
+      { name: "State", type: "VARCHAR(100) NULL" },
+      { name: "Country", type: "VARCHAR(100) NULL" },
+      { name: "PinCode", type: "VARCHAR(20) NULL" },
+      { name: "ReportingManager", type: "VARCHAR(100) NULL" },
+      { name: "EmploymentType", type: "VARCHAR(50) DEFAULT 'Full-Time'" },
+      { name: "EmergencyContactName", type: "VARCHAR(100) NULL" },
+      { name: "EmergencyContactRelation", type: "VARCHAR(50) NULL" },
+      { name: "EmergencyContactPhone", type: "VARCHAR(20) NULL" },
+      { name: "BankName", type: "VARCHAR(100) NULL" },
+      { name: "BankAccountHolder", type: "VARCHAR(100) NULL" },
+      { name: "BankAccountNumber", type: "VARCHAR(50) NULL" },
+      { name: "BankIFSC", type: "VARCHAR(20) NULL" },
+      { name: "BankBranch", type: "VARCHAR(100) NULL" },
+      { name: "ProfilePicture", type: "VARCHAR(255) NULL" },
+    ];
+
+    for (const field of newEmpFields) {
+      if (!empCols[field.name]) {
+        await sequelize.query(`ALTER TABLE Employees ADD COLUMN ${field.name} ${field.type}`).catch(() => {});
+        console.log(`🛠️ Added ${field.name} to Employees table`);
+      }
+    }
+
+    // 3. Check Payroll table columns
+    const payrollCols = await queryInterface.describeTable("Payroll").catch(() => ({}));
+    if (!payrollCols.HRA) {
+      await sequelize.query("ALTER TABLE Payroll ADD COLUMN HRA DECIMAL(12,2) DEFAULT 0.00");
+      console.log("🛠️ Added HRA to Payroll table");
+    }
+    if (!payrollCols.PF) {
+      await sequelize.query("ALTER TABLE Payroll ADD COLUMN PF DECIMAL(12,2) DEFAULT 0.00");
+      console.log("🛠️ Added PF to Payroll table");
+    }
+    if (!payrollCols.Tax) {
+      await sequelize.query("ALTER TABLE Payroll ADD COLUMN Tax DECIMAL(12,2) DEFAULT 0.00");
+      console.log("🛠️ Added Tax to Payroll table");
+    }
+
+    // 4. Check Notifications table columns
+    try {
+      await sequelize.query("ALTER TABLE Notifications MODIFY COLUMN UserId INT NULL");
+      await sequelize.query("ALTER TABLE Notifications MODIFY COLUMN DepartmentId INT NULL");
+      await sequelize.query("ALTER TABLE Notifications MODIFY COLUMN CreatedBy INT NULL");
+    } catch (e) {}
+    const notifCols = await queryInterface.describeTable("Notifications").catch(() => ({}));
+    if (!notifCols.Title) {
       await sequelize.query("ALTER TABLE Notifications ADD COLUMN Title VARCHAR(150) DEFAULT 'Announcement'");
+      console.log("🛠️ Added Title to Notifications table");
+    }
+    if (!notifCols.Priority) {
       await sequelize.query("ALTER TABLE Notifications ADD COLUMN Priority VARCHAR(20) DEFAULT 'Normal'");
+      console.log("🛠️ Added Priority to Notifications table");
+    }
+    if (!notifCols.Audience) {
       await sequelize.query("ALTER TABLE Notifications ADD COLUMN Audience VARCHAR(20) DEFAULT 'All'");
+      console.log("🛠️ Added Audience to Notifications table");
+    }
+    if (!notifCols.DepartmentId) {
       await sequelize.query("ALTER TABLE Notifications ADD COLUMN DepartmentId INT NULL");
+      console.log("🛠️ Added DepartmentId to Notifications table");
+    }
+    if (!notifCols.CreatedBy) {
       await sequelize.query("ALTER TABLE Notifications ADD COLUMN CreatedBy INT NULL");
-      console.log("🛠️ Added missing announcement columns to Notifications table in MySQL");
+      console.log("🛠️ Added CreatedBy to Notifications table");
+    }
+    if (!notifCols.CreatedAt && !notifCols.createdAt) {
+      await sequelize.query("ALTER TABLE Notifications ADD COLUMN CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP");
+      console.log("🛠️ Added CreatedAt to Notifications table");
+    }
+    if (!notifCols.UpdatedAt && !notifCols.updatedAt) {
+      await sequelize.query("ALTER TABLE Notifications ADD COLUMN UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+      console.log("🛠️ Added UpdatedAt to Notifications table");
+    }
+
+    // 5. Check LeaveRequests table columns
+    const leaveCols = await queryInterface.describeTable("LeaveRequests").catch(() => ({}));
+    if (!leaveCols.Comments) {
+      await sequelize.query("ALTER TABLE LeaveRequests ADD COLUMN Comments TEXT NULL");
+      console.log("🛠️ Added Comments to LeaveRequests table");
     }
   } catch (err) {
     console.error("⚠️ Schema update check warning:", err.message);
@@ -99,12 +189,12 @@ const connectDB = async () => {
 
     await ensureSchemaUpToDate();
 
-    // Sync models
+    // Sync models safely
     await sequelize.sync({ alter: false });
     console.log("✅ Database synced");
 
     const { runMigrations } = require("./migrator");
-    await runMigrations();
+    await runMigrations().catch((err) => console.log("Migration notice:", err.message));
 
     await seedInitialData();
   } catch (error) {

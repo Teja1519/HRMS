@@ -1,192 +1,259 @@
-# 🚀 HRMS — Enterprise Human Resource Management System
+# HRMS Enterprise Portal - Human Resource Management System
 
-[![Node.js Version](https://img.shields.shields.shields.shields.shields.shields.shields.io/badge/node.js-%3E%3D%2018.0.0-green.svg)](https://nodejs.org/)
-[![Database](https://img.shields.shields.shields.shields.shields.shields.io/badge/database-MySQL%208.0%2B-blue.svg)](https://www.mysql.com/)
-[![ORM](https://img.shields.shields.shields.shields.shields.shields.io/badge/orm-Sequelize%20v6-blueviolet.svg)](https://sequelize.org/)
-[![Frontend Compiler](https://img.shields.shields.shields.shields.shields.shields.io/badge/compiler-Vite%20%2B%20esbuild-yellow.svg)](https://vitejs.dev/)
-[![Styling](https://img.shields.shields.shields.shields.shields.shields.io/badge/styling-Tailwind%20CSS-38bdf8.svg)](https://tailwindcss.com/)
-[![License](https://img.shields.shields.shields.shields.shields.shields.shields.shields.io/badge/license-MIT-green.svg)](#)
+A full-stack, enterprise-grade **Human Resource Management System (HRMS)** built with React, Vite, Node.js, Express.js, Sequelize ORM, and MySQL.
 
-An enterprise-grade **Human Resource Management System (HRMS)** built on a modern, decoupled architecture. This application provides organizations with an intuitive platform to handle employee records, manage departments, log attendance, request and approve leaves, process payroll with automatic base salary lookup, and display real-time user notification logs.
+The application features role-based access control (**Admin**, **HR**, and **Employee**), automated payroll calculation, daily attendance punch tracking, leave application workflows, company announcements, profile management, and comprehensive reporting exports (PDF/CSV).
 
 ---
 
-## 🎯 Key Project Highlights (For Recruiters & Interviewers)
+## 🚀 System Features & Modules
 
-* **Clean Decoupled Architecture**: Separation of concerns with a robust Node.js/Express REST API backend and a responsive React/Vite frontend.
-* **Database & ORM Integration**: Uses **Sequelize ORM** with **MySQL** for relational integrity. Features automatic model syncing on server startup (`alter: false`), removing the need for manual migration files.
-* **Granular Role-Based Access Control (RBAC)**: Secure route protection on both frontend and backend. Views adapt dynamically for `Admin`, `HR`, and `Employee` roles.
-* **Dynamic Calculations**: The "Process Payroll" dialog interacts directly with employee databases, automatically loading basic salaries and calculating allowances/deductions/bonuses in real-time.
-* **Clean Build System**: The frontend has been migrated to JSX/JS, achieving **0 warnings and 0 errors** during production build compilation (`npm run build`).
-* **UX Enhancements**: Custom styled Radix UI Tooltips, badge counters, and real-time Bell notifications with unread counts and individual mark-read controls.
+### 1. 🔑 Authentication & Security
+- **Role-Based Access Control (RBAC)**: Enforces access rules for `Admin`, `HR`, and `Employee`.
+- **Secure JWT Tokens**: Access tokens (1-hour expiry) and Refresh tokens with automated token verification.
+- **Bcrypt Encryption**: Hashed passwords using `bcryptjs` (salt rounds = 10).
+- **Password Security**: Self-service password change modal enforcing uppercase, lowercase, numeric, special character, and minimum length rules.
+
+### 2. 📊 Interactive Dashboard
+- **Admin Dashboard**: Total employee count, department distribution, pending leaves, today's attendance metrics, monthly payroll totals, and announcement feeds.
+- **HR Dashboard**: Pending leave approvals, today's team attendance, quick employee directory lookup.
+- **Employee Dashboard**: Interactive **Check-In / Check-Out** punch card, working hours calculation, upcoming leaves, and quick payslip view.
+
+### 3. 👥 Employee Management
+- Complete CRUD operations for employee records.
+- Department assignment, employment designation, contact details, status management (`Active`, `Inactive`, `Terminated`).
+- Dynamic search filtering by name, code, designation, or department.
+
+### 4. 🏢 Department Management
+- Create, view, update, and delete company departments.
+- Headcount metrics and department overview cards.
+
+### 5. ⏱️ Attendance Tracking
+- **Daily Punch Check-In / Check-Out**: Prevents duplicate check-ins or checking out before checking in.
+- **Auto-Calculated Working Hours**: Formatted as hours and minutes (`8 hrs 30 mins`).
+- **Monthly Attendance History**: Interactive attendance calendar showing Present, Late, Absent, and Half-Day statuses.
+
+### 6. 🌴 Leave Management
+- **Dynamic Leave Types**: Casual Leave, Sick Leave, Paid Leave, Unpaid Leave.
+- **Employee Portal**: Apply for leave with start date, end date, and reason. Automatic working days calculation.
+- **HR Approval Workflow**: Approve or reject leave applications with optional comments.
+
+### 7. 💰 Payroll System
+- **Formula-Driven Calculations**:
+  - `Gross Salary` = Basic + HRA + Allowances + Bonus
+  - `HRA` = 40% of Basic
+  - `PF (Provident Fund)` = 12% of Basic
+  - `Tax` = 10% of Basic
+  - `Net Salary` = Gross - (PF + Tax + Deductions)
+- **Salary Slips**: Detailed earnings and deductions breakdown, printable payslips, and PDF export.
+
+### 8. 👤 Employee Profile Module (`/profile`)
+- **Profile Header**: Avatar, name, ID, designation, department, email, phone, status badge.
+- **Personal & Contact Info**: DOB, blood group, marital status, nationality, alternate phone, full street address, city, state, country, pin code.
+- **Employment Information**: Read-only employee code, department, joining date, reporting manager, employment type.
+- **Emergency Contact**: Contact name, relationship, and emergency phone.
+- **Bank Information**: Bank name, account holder, IFSC code, branch, and masked account number (`•••• •••• 1234`) with a toggle eye icon for secure viewing.
+- **Profile Picture**: Upload, preview, replace, and remove avatar images (JPG/JPEG/PNG, max 5MB).
+
+### 9. 📢 Company Announcements & Notifications
+- Broadcast announcements by priority level (`Normal`, `Important`, `Urgent`).
+- Real-time unread badge count in top navbar.
+- 1-click notification bell header redirection directly to `/announcements`.
+
+### 10. 📈 Reports & Analytics
+- Attendance Reports, Leave Summaries, Payroll Reports, and Employee Rosters.
+- Export options: **CSV / Excel** and **Printable PDF**.
 
 ---
 
-## 📂 System Directory Structure
+## 🛠️ Technology Stack
 
-```text
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend UI** | React 18, Vite 6, Tailwind CSS, Lucide React, Shadcn UI Components |
+| **State & Router** | Custom Auth Context, React Hooks, Axios API Client, Sonner Toasts |
+| **Backend Engine** | Node.js, Express.js REST API |
+| **Database ORM** | Sequelize 6, Umzug Migrations |
+| **Database Engine** | MySQL 8.0 / MariaDB |
+| **File Storage** | Multer (5MB image upload validation, disk storage) |
+| **Security & Auth** | JsonWebToken (JWT), BcryptJS |
+
+---
+
+## 📁 Project Directory Structure
+
+```
 HRMS/
 ├── BackEnd/
-│   ├── config/          # DB connection configurations (Sequelize)
-│   ├── controllers/     # MVC controller functions handling requests
-│   ├── middleware/      # JWT guards and RBAC role validation checks
-│   ├── models/          # Sequelize schemas (Employee, Department, Leave, Payroll, etc.)
-│   ├── routes/          # Express API route endpoints definitions
-│   ├── server.js        # Server entry point
-│   └── .env             # Backend secret environment variables
+│   ├── config/             # Database connection & automated schema synchronizer
+│   ├── controllers/        # Express route controllers
+│   ├── dtos/               # Data Transfer Objects (EmployeeDTO, NotificationDTO)
+│   ├── middleware/         # Auth, RBAC, error, and upload middlewares
+│   ├── models/             # Sequelize ORM models (User, Employee, Attendance, etc.)
+│   ├── routes/             # REST API endpoint definitions
+│   ├── services/           # Core business logic layer
+│   ├── utils/              # JWT helpers, response formatters, password utilities
+│   ├── uploads/            # Static storage for avatar images
+│   ├── .env                # Backend environment configuration
+│   ├── package.json        # Node.js dependencies
+│   └── server.js           # Server startup script
 │
 └── FrontEnd/
     ├── src/
     │   ├── app/
-    │   │   ├── components/ # Shared UI elements (layout, dialogs, badges, tooltips)
-    │   │   ├── lib/        # API client configs (Axios intercepts)
-    │   │   └── pages/      # Core views (Employees, Payroll, Leaves, Reports, auth)
-    │   ├── main.jsx        # App mounting point
-    │   └── index.css       # Core design systems and tailwind directives
-    ├── vite.config.js      # Vite compilation scripts
-    └── package.json
+    │   │   ├── components/  # Reusable UI cards, Navbar, Sidebar, Modals
+    │   │   ├── pages/       # Dashboard, Attendance, Leave, Payroll, Reports, Settings
+    │   │   ├── lib/         # Axios API instance
+    │   │   └── App.jsx      # Main application router
+    │   ├── features/
+    │   │   └── profile/     # Modular Profile feature (components, hooks, pages, services)
+    │   └── context/         # AuthContext provider
+    ├── package.json         # Frontend dependencies
+    └── vite.config.js       # Vite configuration
 ```
 
 ---
 
-## 💻 Tech Stack
+## ⚙️ Installation & Setup Guide
 
-* **Backend**: Node.js, Express.js, Sequelize ORM
-* **Database**: MySQL 8.0+
-* **Frontend**: React (JSX), Vite Compiler, Tailwind CSS, Lucide Icons, Shadcn/Radix UI Primitives
-
----
-
-## 🛠️ Step-by-Step Installation & Setup
-
-Even if you have never set up a full-stack Node/React project before, you can run this application on your local machine by following these instructions.
-
-### 1. Prerequisites
-Ensure you have the following software installed on your machine:
-* [Node.js](https://nodejs.org/) (version 18 or higher)
-* [Git](https://git-scm.com/) (to clone or track files)
-* **MySQL Server** (either via [MySQL Installer](https://dev.mysql.com/downloads/installer/), [XAMPP](https://www.apachefriends.org/), or Docker)
+### 📋 Prerequisites
+Make sure you have the following installed on your system:
+- **Node.js** (v18.0.0 or higher) — [Download Node.js](https://nodejs.org/)
+- **npm** (v9.0.0 or higher)
+- **MySQL Server** (v8.0 or higher) — [Download MySQL](https://dev.mysql.com/downloads/installer/)
 
 ---
 
-### 2. Set Up the MySQL Database
-Before starting the backend, you must create an empty database schema in MySQL.
+### Step 1: Clone or Download the Repository
 
-1. Open your terminal or MySQL command-line client.
-2. Log into your MySQL server:
-   ```bash
-   mysql -u root -p
-   ```
-3. Enter your MySQL password when prompted.
-4. Run the following command to create the database:
+```bash
+git clone https://github.com/YourUsername/HRMS.
+cd HRMS
+```
+
+---
+
+### Step 2: Database Setup (MySQL)
+
+1. Open MySQL Workbench, MySQL CLI, or phpMyAdmin.
+2. Create a new database named `hrms_db`:
    ```sql
-   CREATE DATABASE hrms_db;
-   ```
-5. You can verify that it was created successfully:
-   ```sql
-   SHOW DATABASES;
-   ```
-6. Exit the MySQL shell:
-   ```sql
-   EXIT;
+   CREATE DATABASE hrms_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
 
 ---
 
-### 3. Configure the Backend Server
+### Step 3: Backend Configuration & Setup
 
-1. Open your terminal and navigate to the `BackEnd` directory:
+1. Navigate to the `BackEnd` directory:
    ```bash
    cd BackEnd
    ```
-2. Install the backend node dependencies:
+
+2. Install backend dependencies:
    ```bash
    npm install
    ```
-3. Open the `.env` file in the `BackEnd` directory using any text editor. If it does not exist, create it:
+
+3. Create or update the `.env` file in `BackEnd/.env`:
    ```env
-   # Server Connection Settings
+   # Server Configuration
    PORT=5000
    NODE_ENV=development
 
-   # Database Connection Settings
+   # MySQL Database Configuration
    DB_HOST=localhost
    DB_PORT=3306
    DB_NAME=hrms_db
    DB_USER=root
-   DB_PASSWORD=your_mysql_password_here
+   DB_PASSWORD=your_mysql_password
 
-   # Authentication Settings
-   JWT_SECRET=hrms_super_secret_jwt_key_2024
-   JWT_EXPIRES_IN=7d
+   # JWT Tokens
+   JWT_SECRET=hrms_super_secret_jwt_key_2026
+   JWT_REFRESH_SECRET=hrms_super_secret_jwt_refresh_key_2026
+   JWT_EXPIRES_IN=1h
+   JWT_REFRESH_EXPIRES_IN=7d
+
+   # Security
    BCRYPT_SALT_ROUNDS=10
    ```
-   > [!IMPORTANT]  
-   > Replace `your_mysql_password_here` with your actual MySQL password. If your root account has no password, leave it empty: `DB_PASSWORD=`.
 
-4. Start the backend development server:
+4. Seed initial database tables and initial demo accounts:
    ```bash
-   npm run dev
+   node -e "require('./config/database').connectDB().then(() => process.exit(0))"
    ```
-   * The terminal will output `🚀 HRMS Server running on http://localhost:5000`.
-   * Under the hood, Sequelize will automatically establish a connection, compile all models, and **automatically create all necessary tables** in your `hrms_db` database.
+
+5. Start the backend server:
+   ```bash
+   npm start
+   ```
+   *The backend server will run on `http://localhost:5000`.*
 
 ---
 
-### 4. Configure the Frontend Client
+### Step 4: Frontend Setup
 
-1. Open a new terminal window or tab, and navigate to the `FrontEnd` directory:
+1. Open a new terminal window and navigate to the `FrontEnd` directory:
    ```bash
    cd FrontEnd
    ```
-2. Install the frontend dependencies:
+
+2. Install frontend dependencies:
    ```bash
    npm install
    ```
+
 3. Start the Vite development server:
    ```bash
    npm run dev
    ```
-   * The terminal will output `➜ Local: http://localhost:5173/`.
-4. Open your web browser and go to: **[http://localhost:5173/](http://localhost:5173/)**
+   *The frontend application will run on `http://localhost:5173`.*
 
 ---
 
-## 🔑 Application Walkthrough (First Run)
+## 🔐 Pre-configured Test Accounts
 
-1. **Create an Account**:
-   * Navigate to `http://localhost:5173/`.
-   * On the landing page, click the **Register** toggle switch to convert the form.
-   * Enter a Username, Password, and select your role (e.g. `Admin` or `HR` or `Employee`).
-   * Click **Register** to insert the credentials directly into the database.
-2. **Log In**:
-   * Toggle back to **Login** mode, input your new credentials, and click submit.
-   * You will be redirected to the `/dashboard`.
-3. **Add Employees & Departments**:
-   * If logged in as an `Admin` or `HR`, go to the **Employees** page and click **Add Employee** to create your first worker.
-   * Go to the **Departments** page and add a new department (e.g., Engineering).
-4. **Interactive Actions**:
-   * **Paging**: The employee table features active client-side pagination (5 records per view).
-   * **Exports**: Download full CSV summaries from the Employees, Payroll, Leaves, and Reports pages.
-   * **Tooltips**: Hover over icons (like Help or Bell) to view custom styled descriptions.
+You can log in to the application using any of the seeded credentials:
+
+| Username | Password | Role | Employee Name | Department | Designation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `admin` | **`password123`** | **Admin** | System Admin | Human Resources | System Administrator |
+| `hr_manager` | **`password123`** | **HR** | Sarah Jenkins | Human Resources | HR Director |
+| `hr_specialist` | **`password123`** | **HR** | Priya Sharma | Human Resources | HR Operations Lead |
+| `john_dev` | **`password123`** | **Employee** | John Doe | Engineering | Senior Software Engineer |
+| `alex_qa` | **`password123`** | **Employee** | Alex Rivera | Engineering | QA Lead Engineer |
+| `emily_fin` | **`password123`** | **Employee** | Emily Watson | Finance & Accounts | Senior Financial Analyst |
+| `michael_mkt` | **`password123`** | **Employee** | Michael Scott | Marketing & Growth | Regional Marketing Manager |
 
 ---
 
-## 📡 Core API Endpoints Reference
+## 📡 REST API Endpoint Reference
 
-| Method | Endpoint | Description | Access Level |
+| Method | Endpoint | Description | Access |
 | :--- | :--- | :--- | :--- |
-| **POST** | `/api/auth/register` | Registers a new user account | Public |
-| **POST** | `/api/auth/login` | Validates credentials and returns JWT token | Public |
-| **GET** | `/api/employees` | Retrieves list of all employees | Admin, HR |
-| **POST** | `/api/employees` | Creates a new employee record | Admin, HR |
-| **PUT** | `/api/employees/:id` | Modifies employee information | Admin, HR |
-| **DELETE** | `/api/employees/:id` | Deletes an employee record | Admin, HR |
-| **GET** | `/api/departments` | Retrieves list of organizational units | Admin, HR |
-| **PUT** | `/api/departments/:id` | Edits department name and description | Admin, HR |
-| **GET** | `/api/leaves` | Retrieves leave request listings | Admin, HR, Employee |
-| **POST** | `/api/leaves/apply` | Submits a new leave request | Admin, HR, Employee |
-| **PUT** | `/api/leaves/:id/approve` | Approves a pending request | Admin, HR |
-| **POST** | `/api/payroll` | Creates and logs a payslip disbursement | Admin, HR |
-| **GET** | `/api/notifications` | Returns user notifications log | Admin, HR, Employee |
-| **PUT** | `/api/notifications/read-all`| Marks all user notifications as read | Admin, HR, Employee |
+| `POST` | `/api/auth/login` | Log in user and receive JWT access token | Public |
+| `GET` | `/api/auth/me` | Fetch authenticated user context | Private |
+| `POST` | `/api/auth/logout` | Revoke user session | Private |
+| `GET` | `/api/employees` | List all employees (search/filter/pagination) | Admin / HR |
+| `POST` | `/api/employees` | Create new employee profile | Admin / HR |
+| `GET` | `/api/attendance/today` | Fetch today's punch status | Authenticated |
+| `POST` | `/api/attendance/check-in` | Punch daily check-in | Employee |
+| `POST` | `/api/attendance/check-out` | Punch daily check-out | Employee |
+| `GET` | `/api/leaves` | List leave requests | Authenticated |
+| `POST` | `/api/leaves` | Submit new leave application | Employee |
+| `PUT` | `/api/leaves/:id/approve` | Approve leave application | Admin / HR |
+| `PUT` | `/api/leaves/:id/reject` | Reject leave application | Admin / HR |
+| `GET` | `/api/payroll` | List monthly payroll records | Authenticated |
+| `POST` | `/api/payroll/generate` | Generate monthly payroll batch | Admin / HR |
+| `GET` | `/api/profile` | Fetch logged-in user profile | Authenticated |
+| `PUT` | `/api/profile` | Update personal, contact, emergency & bank details | Authenticated |
+| `POST` | `/api/profile/upload-photo` | Upload/replace profile avatar photo | Authenticated |
+| `DELETE` | `/api/profile/photo` | Remove profile avatar photo | Authenticated |
+| `PUT` | `/api/profile/change-password` | Update account password securely | Authenticated |
+| `GET` | `/api/notifications` | Fetch announcements and notifications | Authenticated |
+| `POST` | `/api/notifications` | Publish new company announcement | Admin / HR |
+
+---
+
+## 📄 License & Attribution
+Distributed under the MIT License. Developed for enterprise HR management and demonstration.

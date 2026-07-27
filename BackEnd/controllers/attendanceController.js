@@ -29,7 +29,29 @@ const resolveEmployeeId = async (userContext) => {
     return user.Employee.EmployeeId;
   }
 
-  return null;
+  // Fallback: If still no profile, create a dedicated employee record
+  try {
+    const rawUsername = user.Username || `user${user.UserId}`;
+    const code = `EMP-U${user.UserId}`;
+    const email = `${rawUsername}_${user.UserId}@hrms.local`;
+
+    const newEmp = await Employee.create({
+      EmployeeCode: code,
+      FirstName: user.Username || "User",
+      LastName: user.Role || "Employee",
+      Email: email,
+      UserId: user.UserId,
+      Status: "Active",
+      HireDate: new Date().toISOString().slice(0, 10),
+    });
+
+    userContext.EmployeeId = newEmp.EmployeeId;
+    return newEmp.EmployeeId;
+  } catch (err) {
+    console.error("Fallback employee creation notice:", err.message);
+    const anyEmp = await Employee.findOne();
+    return anyEmp ? anyEmp.EmployeeId : null;
+  }
 };
 
 const checkIn = async (req, res, next) => {

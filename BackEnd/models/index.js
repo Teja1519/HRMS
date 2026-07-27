@@ -41,6 +41,14 @@ Payroll.belongsTo(Employee, { foreignKey: "EmployeeId", as: "Employee" });
 User.hasMany(Notification, { foreignKey: "UserId", as: "Notifications" });
 Notification.belongsTo(User, { foreignKey: "UserId", as: "User" });
 
+// Department <-> Notification
+Department.hasMany(Notification, { foreignKey: "DepartmentId", as: "Notifications" });
+Notification.belongsTo(Department, { foreignKey: "DepartmentId", as: "Department" });
+
+// User (Creator) <-> Notification
+User.hasMany(Notification, { foreignKey: "CreatedBy", as: "CreatedAnnouncements" });
+Notification.belongsTo(User, { foreignKey: "CreatedBy", as: "Creator" });
+
 // ─── Export all models ────────────────────────────────────────────────────────
 module.exports = {
   User,
